@@ -1,40 +1,30 @@
-"""
-Excel Writer: produces a 4-sheet Excel workbook.
-  Sheet 1 — Student Data
-  Sheet 2 — Subject Analysis
-  Sheet 3 — School Summary
-  Sheet 4 — Parse Errors (if any)
-"""
+"""Create the Excel workbook used by the analyzer."""
 
-from typing import Dict, List, Optional
+import re
+from typing import Dict, List
 
 import pandas as pd
 from openpyxl import Workbook
-from openpyxl.styles import (
-    Alignment, Border, Font, PatternFill, Side
-)
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.utils.dataframe import dataframe_to_rows
 
 from parser.gazette_parser import ParseError, Student
 from transformer.calculator import compute_subject_analysis, compute_summary
 from transformer.normalizer import build_normalized_table
 
 
-# ── Colour palette ───────────────────────────────────────────────────────────
-CLR_HEADER_BG   = "1F4E79"   # dark navy
-CLR_HEADER_FG   = "FFFFFF"   # white
-CLR_PASS        = "1A5C38"   # dark green
-CLR_FAIL        = "C00000"   # deep red
-CLR_COMP        = "7F4C00"   # amber
-CLR_ABSENT      = "595959"   # grey
-CLR_ALT_ROW     = "EBF2FF"   # very light blue
-CLR_EMPTY_CELL  = "F2F2F2"   # light grey
-CLR_GOOD_AVG    = "C6EFCE"   # light green
-CLR_BAD_AVG     = "FFC7CE"   # light red
-CLR_MID_AVG     = "FFEB9C"   # yellow
+CLR_HEADER_BG = "1F4E79"
+CLR_HEADER_FG = "FFFFFF"
+CLR_PASS = "1A5C38"
+CLR_FAIL = "C00000"
+CLR_COMP = "7F4C00"
+CLR_ALT_ROW = "EBF2FF"
+CLR_EMPTY_CELL = "F2F2F2"
+CLR_GOOD_AVG = "C6EFCE"
+CLR_BAD_AVG = "FFC7CE"
+CLR_MID_AVG = "FFEB9C"
 
-THIN = Side(style='thin', color="B0B0B0")
+THIN = Side(style="thin", color="B0B0B0")
 THIN_BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
 
@@ -42,218 +32,201 @@ def _hdr_fill(hex_color: str) -> PatternFill:
     return PatternFill("solid", fgColor=hex_color)
 
 
-def _font(bold=False, color="000000", size=11) -> Font:
+def _font(bold: bool = False, color: str = "000000", size: int = 11) -> Font:
     return Font(name="Calibri", bold=bold, color=color, size=size)
 
 
-def _auto_width(ws, min_width=10, max_width=40):
-    for col in ws.columns:
-        max_len = min_width
-        col_letter = get_column_letter(col[0].column)
-        for cell in col:
-            try:
-                cv = str(cell.value) if cell.value is not None else ''
-                max_len = max(max_len, len(cv) + 2)
-            except Exception:
-                pass
-        ws.column_dimensions[col_letter].width = min(max_len, max_width)
+def _auto_width(ws, min_width: int = 10, max_width: int = 40) -> None:
+    for column in ws.columns:
+        width = min_width
+        column_letter = get_column_letter(column[0].column)
+        for cell in column:
+            value = "" if cell.value is None else str(cell.value)
+            width = max(width, len(value) + 2)
+        ws.column_dimensions[column_letter].width = min(width, max_width)
 
 
-# ── Sheet 1: Student Data ────────────────────────────────────────────────────
-def _write_student_sheet(wb: Workbook, df: pd.DataFrame, title: str):
+def _write_student_sheet(wb: Workbook, dataframe: pd.DataFrame, title: str) -> None:
     ws = wb.active
     ws.title = "Student Data"
 
-    # School title row
     ws.append([title])
-    ws.merge_cells(start_row=1, start_column=1,
-                   end_row=1, end_column=len(df.columns))
-    ws['A1'].font = Font(name="Calibri", bold=True, size=13, color=CLR_HEADER_FG)
-    ws['A1'].fill = _hdr_fill(CLR_HEADER_BG)
-    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(dataframe.columns))
+    ws["A1"].font = Font(name="Calibri", bold=True, size=13, color=CLR_HEADER_FG)
+    ws["A1"].fill = _hdr_fill(CLR_HEADER_BG)
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 22
 
-    # Header row
-    headers = list(df.columns)
+    headers = list(dataframe.columns)
     ws.append(headers)
-    hdr_row = 2
-    for c, h in enumerate(headers, 1):
-        cell = ws.cell(row=hdr_row, column=c)
+    for index, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=2, column=index)
         cell.font = _font(bold=True, color=CLR_HEADER_FG, size=10)
         cell.fill = _hdr_fill(CLR_HEADER_BG)
-        cell.alignment = Alignment(horizontal='center', vertical='center',
-                                   wrap_text=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.border = THIN_BORDER
-    ws.row_dimensions[hdr_row].height = 32
+    ws.row_dimensions[2].height = 32
 
-    # Result column index
-    result_col = headers.index('Result') + 1 if 'Result' in headers else None
-    # Subject mark columns (anything that ends with a code pattern like '(NNN)')
-    import re
-    mark_cols = [i + 1 for i, h in enumerate(headers)
-                 if re.search(r'\(\d{3}\)$', str(h))]
+    result_column = headers.index("Result") + 1 if "Result" in headers else None
+    mark_columns = [
+        index + 1
+        for index, header in enumerate(headers)
+        if re.search(r"\(\d{3}\)$", str(header))
+    ]
 
-    # Data rows
-    for r_idx, (_, row) in enumerate(df.iterrows(), 3):
-        alt = (r_idx % 2 == 0)
-        for c_idx, col_name in enumerate(headers, 1):
-            val = row[col_name]
-            cell = ws.cell(row=r_idx, column=c_idx)
+    for row_index, (_, row) in enumerate(dataframe.iterrows(), start=3):
+        alternate = row_index % 2 == 0
+        for column_index, column_name in enumerate(headers, start=1):
+            value = row[column_name]
+            cell = ws.cell(row=row_index, column=column_index)
 
-            if val is None or (isinstance(val, float) and pd.isna(val)):
+            if value is None or (isinstance(value, float) and pd.isna(value)):
                 cell.value = None
-                if c_idx in mark_cols:
+                if column_index in mark_columns:
                     cell.fill = _hdr_fill(CLR_EMPTY_CELL)
             else:
-                cell.value = val
+                cell.value = value
 
             cell.border = THIN_BORDER
             cell.font = _font(size=10)
-            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.alignment = Alignment(horizontal="center", vertical="center")
 
-            # Alternate row shading
-            if alt and cell.fill.fgColor.rgb in ('00000000', 'FFFFFFFF', '00FFFFFF'):
+            if alternate and cell.fill.fgColor.rgb in ("00000000", "FFFFFFFF", "00FFFFFF"):
                 cell.fill = _hdr_fill(CLR_ALT_ROW)
 
-        # Result colour
-        if result_col:
-            rc = ws.cell(row=r_idx, column=result_col)
-            result_val = str(row.get('Result', '')).upper()
-            if result_val == 'PASS':
-                rc.font = _font(bold=True, color=CLR_PASS, size=10)
-            elif result_val == 'FAIL':
-                rc.font = _font(bold=True, color=CLR_FAIL, size=10)
-            elif result_val == 'COMP':
-                rc.font = _font(bold=True, color=CLR_COMP, size=10)
+        if result_column:
+            result_cell = ws.cell(row=row_index, column=result_column)
+            result_value = str(row.get("Result", "")).upper()
+            if result_value == "PASS":
+                result_cell.font = _font(bold=True, color=CLR_PASS, size=10)
+            elif result_value == "FAIL":
+                result_cell.font = _font(bold=True, color=CLR_FAIL, size=10)
+            elif result_value == "COMP":
+                result_cell.font = _font(bold=True, color=CLR_COMP, size=10)
 
-    # Freeze top 2 rows + first column
     ws.freeze_panes = "B3"
     ws.auto_filter.ref = ws.dimensions
-
     _auto_width(ws)
-    # Name column wider
-    if 'Name' in headers:
-        ws.column_dimensions[get_column_letter(headers.index('Name') + 1)].width = 28
+
+    if "Name" in headers:
+        ws.column_dimensions[get_column_letter(headers.index("Name") + 1)].width = 28
 
 
-# ── Sheet 2: Subject Analysis ────────────────────────────────────────────────
-def _write_analysis_sheet(wb: Workbook, df: pd.DataFrame):
+def _write_analysis_sheet(wb: Workbook, dataframe: pd.DataFrame) -> None:
     ws = wb.create_sheet("Subject Analysis")
-
-    headers = list(df.columns)
+    headers = list(dataframe.columns)
     ws.append(headers)
-    for c, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=c)
+
+    for index, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=index)
         cell.font = _font(bold=True, color=CLR_HEADER_FG)
         cell.fill = _hdr_fill(CLR_HEADER_BG)
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = THIN_BORDER
     ws.row_dimensions[1].height = 22
 
-    avg_col = headers.index('Average Marks') + 1 if 'Average Marks' in headers else None
+    average_column = headers.index("Average Marks") + 1 if "Average Marks" in headers else None
 
-    for r_idx, (_, row) in enumerate(df.iterrows(), 2):
-        for c_idx, col in enumerate(headers, 1):
-            val = row[col]
-            cell = ws.cell(row=r_idx, column=c_idx)
-            cell.value = val if not (isinstance(val, float) and pd.isna(val)) else None
+    for row_index, (_, row) in enumerate(dataframe.iterrows(), start=2):
+        for column_index, column_name in enumerate(headers, start=1):
+            value = row[column_name]
+            cell = ws.cell(row=row_index, column=column_index)
+            cell.value = value if not (isinstance(value, float) and pd.isna(value)) else None
             cell.border = THIN_BORDER
             cell.font = _font(size=10)
-            cell.alignment = Alignment(horizontal='center')
+            cell.alignment = Alignment(horizontal="center")
 
-        # Colour-code average
-        if avg_col:
-            avg = row.get('Average Marks', None)
-            ac = ws.cell(row=r_idx, column=avg_col)
-            if avg is not None and not (isinstance(avg, float) and pd.isna(avg)):
-                if avg >= 75:
-                    ac.fill = _hdr_fill(CLR_GOOD_AVG)
-                elif avg < 40:
-                    ac.fill = _hdr_fill(CLR_BAD_AVG)
+        if average_column:
+            average = row.get("Average Marks")
+            average_cell = ws.cell(row=row_index, column=average_column)
+            if average is not None and not (isinstance(average, float) and pd.isna(average)):
+                if average >= 75:
+                    average_cell.fill = _hdr_fill(CLR_GOOD_AVG)
+                elif average < 40:
+                    average_cell.fill = _hdr_fill(CLR_BAD_AVG)
                 else:
-                    ac.fill = _hdr_fill(CLR_MID_AVG)
+                    average_cell.fill = _hdr_fill(CLR_MID_AVG)
 
     ws.freeze_panes = "A2"
     _auto_width(ws)
 
 
-# ── Sheet 3: School Summary ──────────────────────────────────────────────────
-def _write_summary_sheet(wb: Workbook, summary: Dict, title: str):
+def _write_summary_sheet(wb: Workbook, summary: Dict, title: str) -> None:
     ws = wb.create_sheet("School Summary")
 
     ws.append([title])
-    ws.merge_cells('A1:C1')
-    ws['A1'].font = Font(name="Calibri", bold=True, size=13, color=CLR_HEADER_FG)
-    ws['A1'].fill = _hdr_fill(CLR_HEADER_BG)
-    ws['A1'].alignment = Alignment(horizontal='center')
+    ws.merge_cells("A1:C1")
+    ws["A1"].font = Font(name="Calibri", bold=True, size=13, color=CLR_HEADER_FG)
+    ws["A1"].fill = _hdr_fill(CLR_HEADER_BG)
+    ws["A1"].alignment = Alignment(horizontal="center")
     ws.row_dimensions[1].height = 22
 
-    ws.append(['Metric', 'Value'])
-    for c in range(1, 3):
-        cell = ws.cell(row=2, column=c)
+    ws.append(["Metric", "Value"])
+    for column_index in range(1, 3):
+        cell = ws.cell(row=2, column=column_index)
         cell.font = _font(bold=True, color=CLR_HEADER_FG)
         cell.fill = _hdr_fill(CLR_HEADER_BG)
         cell.border = THIN_BORDER
 
-    for r, (k, v) in enumerate(summary.items(), 3):
-        ws.cell(row=r, column=1, value=k).border = THIN_BORDER
-        ws.cell(row=r, column=1).font = _font(bold=True)
-        vc = ws.cell(row=r, column=2, value=v)
-        vc.border = THIN_BORDER
-        vc.alignment = Alignment(horizontal='center')
+    for row_index, (key, value) in enumerate(summary.items(), start=3):
+        label_cell = ws.cell(row=row_index, column=1, value=key)
+        label_cell.border = THIN_BORDER
+        label_cell.font = _font(bold=True)
+
+        value_cell = ws.cell(row=row_index, column=2, value=value)
+        value_cell.border = THIN_BORDER
+        value_cell.alignment = Alignment(horizontal="center")
 
     _auto_width(ws, min_width=18)
 
 
-# ── Sheet 4: Parse Errors ────────────────────────────────────────────────────
-def _write_errors_sheet(wb: Workbook, errors: List[ParseError]):
+def _write_errors_sheet(wb: Workbook, errors: List[ParseError]) -> None:
     ws = wb.create_sheet("Parse Errors")
-    headers = ['Level', 'Roll No', 'Line No', 'Message']
+    headers = ["Level", "Roll No", "Line No", "Message"]
     ws.append(headers)
-    for c, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=c)
+
+    for index, _ in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=index)
         cell.font = _font(bold=True, color=CLR_HEADER_FG)
         cell.fill = _hdr_fill("7F0000" if errors else "1F4E79")
         cell.border = THIN_BORDER
-        cell.alignment = Alignment(horizontal='center')
+        cell.alignment = Alignment(horizontal="center")
 
     if not errors:
-        ws.append(['✅ No parse errors detected', '', '', ''])
+        ws.append(["No parse errors detected", "", "", ""])
     else:
-        for r, err in enumerate(errors, 2):
-            row_data = [err.level, err.roll, err.line_no, err.message]
-            for c, val in enumerate(row_data, 1):
-                cell = ws.cell(row=r, column=c, value=val)
+        for row_index, error in enumerate(errors, start=2):
+            row_data = [error.level, error.roll, error.line_no, error.message]
+            for column_index, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=row_index, column=column_index, value=value)
                 cell.border = THIN_BORDER
-                if err.level == 'ERROR':
+                if error.level == "ERROR":
                     cell.fill = _hdr_fill(CLR_BAD_AVG)
-                elif err.level == 'WARNING':
+                elif error.level == "WARNING":
                     cell.fill = _hdr_fill(CLR_MID_AVG)
 
     _auto_width(ws)
 
 
-# ── Public entry point ───────────────────────────────────────────────────────
 def write_excel(
     students: List[Student],
     errors: List[ParseError],
     subject_master: Dict,
     output_path: str,
-    school_name: str = "CBSE Results 2026"
-):
-    df_students, all_codes = build_normalized_table(students, subject_master)
-    df_analysis = compute_subject_analysis(students, all_codes, subject_master)
+    school_name: str = "CBSE Results 2026",
+) -> None:
+    dataframe_students, all_codes = build_normalized_table(students, subject_master)
+    dataframe_analysis = compute_subject_analysis(students, all_codes, subject_master)
     summary = compute_summary(students)
 
-    wb = Workbook()
+    workbook = Workbook()
+    _write_student_sheet(workbook, dataframe_students, school_name)
+    _write_analysis_sheet(workbook, dataframe_analysis)
+    _write_summary_sheet(workbook, summary, school_name)
+    _write_errors_sheet(workbook, errors)
 
-    _write_student_sheet(wb, df_students, school_name)
-    _write_analysis_sheet(wb, df_analysis)
-    _write_summary_sheet(wb, summary, school_name)
-    _write_errors_sheet(wb, errors)
-
-    wb.save(output_path)
-    print(f"✅ Saved: {output_path}")
+    workbook.save(output_path)
+    print(f"Saved: {output_path}")
     print(f"   Students : {len(students)}")
     print(f"   Subjects : {len(all_codes)}")
     print(f"   Errors   : {len(errors)}")

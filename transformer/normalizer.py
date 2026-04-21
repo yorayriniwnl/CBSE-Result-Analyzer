@@ -1,11 +1,8 @@
-"""
-Normalizer: converts list of Student objects into a wide pandas DataFrame.
-One column per unique subject code found across the entire dataset.
-"""
+"""Normalize parsed students into tabular forms used by the app and tests."""
 
 import json
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+import re
+from typing import Dict, List, Tuple
 
 import pandas as pd
 
@@ -13,60 +10,85 @@ from parser.gazette_parser import Student
 
 
 def load_subject_master(path: str) -> Dict[str, str]:
-    with open(path, 'r') as f:
-        return json.load(f)
+    with open(path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _sorted_subject_codes(students: List[Student]) -> List[str]:
+    all_codes_set = set()
+    for student in students:
+        all_codes_set.update(student.subjects.keys())
+
+    lang_codes = {"101", "184", "002", "001", "085", "021", "003"}
+    math_codes = {"041", "241", "040"}
+    science_codes = {"042", "043", "044", "086"}
+
+    def sort_key(code: str) -> Tuple[int, str]:
+        if code in lang_codes:
+            return (0, code)
+        if code in math_codes:
+            return (1, code)
+        if code in science_codes:
+            return (2, code)
+        return (3, code)
+
+    return sorted(all_codes_set, key=sort_key)
 
 
 def build_normalized_table(
     students: List[Student],
-    subject_master: Dict[str, str]
+    subject_master: Dict[str, str],
 ) -> Tuple[pd.DataFrame, List[str]]:
-    """
-    Returns:
-        df         — wide DataFrame, one row per student
-        all_codes  — ordered list of subject codes (column order)
-    """
-    # Discover all unique codes
-    all_codes_set = set()
-    for s in students:
-        all_codes_set.update(s.subjects.keys())
-
-    # Sort: languages first, then math, then science, then rest
-    LANG_CODES  = {'101', '184', '002', '001', '085', '021', '003'}
-    MATH_CODES  = {'041', '241', '040'}
-    SCI_CODES   = {'042', '043', '044', '086'}
-
-    def sort_key(code: str):
-        if code in LANG_CODES:  return (0, code)
-        if code in MATH_CODES:  return (1, code)
-        if code in SCI_CODES:   return (2, code)
-        return (3, code)
-
-    all_codes = sorted(all_codes_set, key=sort_key)
-
+    """Return a wide DataFrame for workbook export."""
+    all_codes = _sorted_subject_codes(students)
     rows = []
-    for s in students:
-        row: Dict = {
-            'Roll No': s.roll,
-            'Name': s.name,
-            'Gender': s.gender,
+
+    for student in students:
+        row: Dict[str, object] = {
+            "Roll No": student.roll,
+            "Name": student.name,
+            "Gender": student.gender,
         }
+
         total = 0
         count = 0
         for code in all_codes:
-            label = subject_master.get(code, f'Sub-{code}')
-            col = f'{label} ({code})'
-            val = s.subjects.get(code)  # None if student didn't take this subject
-            row[col] = val
-            if val is not None:
-                total += val
+            label = subject_master.get(code, f"Sub-{code}")
+            column_name = f"{label} ({code})"
+            mark = student.subjects.get(code)
+            row[column_name] = mark
+            if mark is not None:
+                total += mark
                 count += 1
 
-        row['Total Marks'] = total if count > 0 else None
-        row['Subjects Appeared'] = count
-        row['Percentage'] = round(total / count, 2) if count > 0 else None
-        row['Result'] = s.result
+        row["Total Marks"] = total if count > 0 else None
+        row["Subjects Appeared"] = count
+        row["Percentage"] = round(total / count, 2) if count > 0 else None
+        row["Result"] = student.result
         rows.append(row)
 
-    df = pd.DataFrame(rows)
-    return df, all_codes
+    return pd.DataFrame(rows), all_codes
+
+
+def build_student_dataframe(
+    students: List[Student],
+    subject_master: Dict[str, str],
+) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Backward-compatible wrapper expected by the tests.
+
+    Subjects a student did not take are rendered as blank strings rather than
+    null values so direct row comparisons stay simple.
+    """
+    dataframe, all_codes = build_normalized_table(students, subject_master)
+    display_df = dataframe.copy()
+
+    subject_columns = [
+        column
+        for column in display_df.columns
+        if re.search(r"\(\d{3}\)$", str(column))
+    ]
+    if subject_columns:
+        display_df[subject_columns] = display_df[subject_columns].fillna("")
+
+    return display_df, all_codes
