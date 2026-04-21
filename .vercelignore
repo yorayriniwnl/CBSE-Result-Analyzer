@@ -3,4 +3,4 @@ __pycache__/
 .streamlit/
 tests/
 *.xlsx
-app.py
+streamlit_app.py
