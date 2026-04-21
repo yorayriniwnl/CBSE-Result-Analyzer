@@ -1,5 +1,6 @@
 """Create the Excel workbook used by the analyzer."""
 
+from io import BytesIO
 import re
 from typing import Dict, List
 
@@ -208,13 +209,12 @@ def _write_errors_sheet(wb: Workbook, errors: List[ParseError]) -> None:
     _auto_width(ws)
 
 
-def write_excel(
+def build_workbook(
     students: List[Student],
     errors: List[ParseError],
     subject_master: Dict,
-    output_path: str,
     school_name: str = "CBSE Results 2026",
-) -> None:
+) -> Workbook:
     dataframe_students, all_codes = build_normalized_table(students, subject_master)
     dataframe_analysis = compute_subject_analysis(students, all_codes, subject_master)
     summary = compute_summary(students)
@@ -225,6 +225,34 @@ def write_excel(
     _write_summary_sheet(workbook, summary, school_name)
     _write_errors_sheet(workbook, errors)
 
+    return workbook
+
+
+def workbook_to_bytes(workbook: Workbook) -> bytes:
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def export_excel_bytes(
+    students: List[Student],
+    errors: List[ParseError],
+    subject_master: Dict,
+    school_name: str = "CBSE Results 2026",
+) -> bytes:
+    workbook = build_workbook(students, errors, subject_master, school_name)
+    return workbook_to_bytes(workbook)
+
+
+def write_excel(
+    students: List[Student],
+    errors: List[ParseError],
+    subject_master: Dict,
+    output_path: str,
+    school_name: str = "CBSE Results 2026",
+) -> None:
+    workbook = build_workbook(students, errors, subject_master, school_name)
+    _, all_codes = build_normalized_table(students, subject_master)
     workbook.save(output_path)
     print(f"Saved: {output_path}")
     print(f"   Students : {len(students)}")
