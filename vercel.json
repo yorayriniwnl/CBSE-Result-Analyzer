@@ -1,3 +1,9 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "flask",
+  "functions": {
+    "app.py": {
+      "excludeFiles": "{tests/**,.pytest_cache/**,__pycache__/**,.streamlit/**,*.xlsx,streamlit_app.py}"
+    }
+  }
 }
