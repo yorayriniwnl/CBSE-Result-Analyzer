@@ -3,3 +3,4 @@ openpyxl
 PyYAML
 pytest
 streamlit
+Flask

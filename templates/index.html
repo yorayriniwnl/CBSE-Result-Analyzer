@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CBSE Analyzer Atelier</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --canvas: #f3efe8;
+            --canvas-soft: #faf6f0;
+            --surface: rgba(255, 255, 255, 0.76);
+            --surface-strong: rgba(255, 255, 255, 0.92);
+            --ink: #161719;
+            --muted: #6b655d;
+            --line: rgba(22, 23, 25, 0.08);
+            --gold: #b48a56;
+            --gold-deep: #7b5a32;
+            --forest: #233933;
+            --shadow: 0 24px 60px rgba(32, 26, 20, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Manrope", sans-serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 12% 10%, rgba(180, 138, 86, 0.16), transparent 20%),
+                radial-gradient(circle at 86% 14%, rgba(35, 57, 51, 0.11), transparent 18%),
+                radial-gradient(circle at 78% 82%, rgba(125, 95, 63, 0.12), transparent 16%),
+                linear-gradient(180deg, #ece6dc 0%, #f7f2eb 38%, #f4f0ea 100%);
+            min-height: 100vh;
+        }
+
+        .page-shell {
+            width: min(1220px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 56px;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: "Cormorant Garamond", serif;
+            letter-spacing: -0.03em;
+            margin: 0;
+        }
+
+        p {
+            margin: 0;
+        }
+
+        .lux-label {
+            margin: 0 0 10px;
+            color: var(--gold-deep);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .hero-shell {
+            position: relative;
+            overflow: hidden;
+            padding: 34px 36px;
+            border-radius: 34px;
+            background:
+                radial-gradient(circle at top right, rgba(180, 138, 86, 0.22), transparent 28%),
+                linear-gradient(145deg, rgba(14, 17, 19, 0.98), rgba(30, 34, 38, 0.95));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 34px 80px rgba(21, 18, 15, 0.22);
+            margin-bottom: 24px;
+        }
+
+        .hero-shell::after {
+            content: "";
+            position: absolute;
+            right: -70px;
+            bottom: -120px;
+            width: 280px;
+            height: 280px;
+            border-radius: 999px;
+            background: radial-gradient(circle, rgba(180, 138, 86, 0.14), transparent 66%);
+            pointer-events: none;
+        }
+
+        .hero-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 244, 226, 0.92);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .hero-title {
+            margin: 18px 0 12px;
+            font-size: clamp(48px, 7vw, 84px);
+            line-height: 0.9;
+            color: #f8f1e6;
+            max-width: 9ch;
+        }
+
+        .hero-copy {
+            max-width: 58ch;
+            color: rgba(245, 239, 231, 0.76);
+            font-size: 16px;
+            line-height: 1.78;
+        }
+
+        .hero-pill-row,
+        .status-line {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .hero-pill-row {
+            margin-top: 18px;
+        }
+
+        .hero-pill,
+        .status-chip {
+            padding: 9px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.07);
+            color: rgba(248, 241, 230, 0.88);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .status-line {
+            margin-top: 12px;
+        }
+
+        .hero-stat-grid,
+        .metrics-grid,
+        .three-grid,
+        .two-grid,
+        .form-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .hero-stat-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-top: 24px;
+        }
+
+        .hero-stat {
+            padding: 16px 18px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .hero-stat-label {
+            color: rgba(245, 239, 231, 0.56);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            margin-bottom: 9px;
+        }
+
+        .hero-stat-value {
+            color: #fcf7ef;
+            font-family: "Cormorant Garamond", serif;
+            font-size: 30px;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .hero-stat-copy {
+            color: rgba(245, 239, 231, 0.64);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .form-grid {
+            grid-template-columns: 1.08fr 0.92fr;
+            margin-bottom: 24px;
+        }
+
+        .panel-card,
+        .panel-card-dark,
+        .metric-card,
+        .spotlight-card,
+        .table-shell,
+        .empty-shell,
+        .alert-shell {
+            border-radius: 26px;
+            box-shadow: var(--shadow);
+        }
+
+        .panel-card,
+        .metric-card,
+        .spotlight-card,
+        .table-shell,
+        .empty-shell,
+        .alert-shell {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.72));
+            border: 1px solid var(--line);
+        }
+
+        .panel-card,
+        .panel-card-dark {
+            padding: 22px 24px;
+            margin-bottom: 14px;
+        }
+
+        .panel-card-dark {
+            background: linear-gradient(180deg, rgba(27, 30, 34, 0.97), rgba(20, 23, 27, 0.95));
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 22px 48px rgba(18, 17, 15, 0.16);
+        }
+
+        .panel-title,
+        .panel-title-dark {
+            font-size: 36px;
+            line-height: 0.98;
+            margin-bottom: 6px;
+        }
+
+        .panel-title-dark {
+            color: #f7efe5;
+        }
+
+        .panel-copy,
+        .panel-copy-dark,
+        .tab-copy {
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        .panel-copy {
+            color: var(--muted);
+        }
+
+        .panel-copy-dark {
+            color: rgba(247, 239, 229, 0.72);
+        }
+
+        .mini-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .mini-chip {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(180, 138, 86, 0.11);
+            color: var(--gold-deep);
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .field-group label {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        input[type="text"],
+        input[type="file"] {
+            width: 100%;
+            min-height: 52px;
+            padding: 12px 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(22, 23, 25, 0.1);
+            background: rgba(255, 255, 255, 0.9);
+            font: inherit;
+            color: var(--ink);
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        button {
+            min-height: 52px;
+            padding: 0 22px;
+            border: 0;
+            border-radius: 999px;
+            font: inherit;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: transform 0.18s ease, filter 0.18s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.02);
+        }
+
+        .button-primary {
+            background: linear-gradient(135deg, #1f2629, #85643d);
+            color: #fbf5ed;
+            box-shadow: 0 16px 28px rgba(35, 31, 26, 0.16);
+        }
+
+        .button-secondary {
+            background: rgba(255, 255, 255, 0.12);
+            color: rgba(247, 239, 229, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .metrics-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin-bottom: 24px;
+        }
+
+        .metric-card {
+            position: relative;
+            overflow: hidden;
+            min-height: 100%;
+            padding: 18px;
+        }
+
+        .metric-card::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--gold), rgba(180, 138, 86, 0.18));
+        }
+
+        .metric-card.forest::before {
+            background: linear-gradient(90deg, #2b584d, rgba(43, 88, 77, 0.18));
+        }
+
+        .metric-card.ink::before {
+            background: linear-gradient(90deg, #20252b, rgba(32, 37, 43, 0.18));
+        }
+
+        .metric-label {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-family: "Cormorant Garamond", serif;
+            font-size: 36px;
+            line-height: 0.95;
+            margin-bottom: 6px;
+        }
+
+        .metric-note {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .two-grid {
+            grid-template-columns: 1.05fr 0.95fr;
+            margin-bottom: 24px;
+        }
+
+        .three-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-bottom: 24px;
+        }
+
+        .spotlight-card {
+            min-height: 100%;
+            padding: 20px;
+        }
+
+        .spotlight-card.tone-ink {
+            background: linear-gradient(180deg, rgba(28, 31, 35, 0.98), rgba(20, 23, 27, 0.95));
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 22px 48px rgba(18, 17, 15, 0.18);
+        }
+
+        .spotlight-card.tone-forest {
+            background: linear-gradient(180deg, rgba(231, 239, 236, 0.9), rgba(245, 249, 247, 0.82));
+        }
+
+        .spotlight-card.tone-gold {
+            background: linear-gradient(180deg, rgba(249, 241, 231, 0.94), rgba(255, 251, 245, 0.82));
+        }
+
+        .spotlight-brow {
+            color: var(--gold-deep);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .tone-ink .spotlight-brow {
+            color: rgba(244, 226, 197, 0.8);
+        }
+
+        .spotlight-title {
+            font-size: 34px;
+            line-height: 0.98;
+            margin-bottom: 6px;
+        }
+
+        .tone-ink .spotlight-title {
+            color: #f8f1e6;
+        }
+
+        .spotlight-copy {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.65;
+            margin-bottom: 14px;
+        }
+
+        .tone-ink .spotlight-copy {
+            color: rgba(247, 239, 229, 0.72);
+        }
+
+        .spotlight-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .spotlight-chip {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(35, 57, 51, 0.1);
+            color: var(--forest);
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .tone-gold .spotlight-chip {
+            background: rgba(180, 138, 86, 0.14);
+            color: var(--gold-deep);
+        }
+
+        .tone-ink .spotlight-chip {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(248, 241, 230, 0.86);
+        }
+
+        .student-card {
+            min-height: 100%;
+            padding: 20px;
+            border-radius: 24px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.76));
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+        }
+
+        .student-rank {
+            width: 38px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #d0ab76, #8c6540);
+            color: white;
+            font-size: 13px;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+        .student-name {
+            font-size: 33px;
+            line-height: 0.98;
+            margin-bottom: 4px;
+        }
+
+        .student-meta {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 14px;
+        }
+
+        .student-score-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .student-score {
+            color: var(--gold-deep);
+            font-size: 24px;
+            font-weight: 800;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 7px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+        }
+
+        .badge-pass {
+            background: rgba(35, 57, 51, 0.12);
+            color: #244b41;
+        }
+
+        .badge-fail {
+            background: rgba(166, 96, 80, 0.14);
+            color: #9d4638;
+        }
+
+        .badge-comp {
+            background: rgba(180, 138, 86, 0.16);
+            color: #8a6338;
+        }
+
+        .badge-absent {
+            background: rgba(46, 52, 60, 0.1);
+            color: #4f5a64;
+        }
+
+        .badge-neutral {
+            background: rgba(22, 23, 25, 0.08);
+            color: var(--ink);
+        }
+
+        .distribution-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .distribution-item {
+            display: grid;
+            grid-template-columns: 120px 1fr 74px;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .distribution-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .distribution-track {
+            height: 11px;
+            border-radius: 999px;
+            background: rgba(22, 23, 25, 0.08);
+            overflow: hidden;
+        }
+
+        .distribution-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--gold), #3e5f54);
+        }
+
+        .distribution-value {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--muted);
+            text-align: right;
+        }
+
+        .table-shell,
+        .alert-shell {
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .table-header {
+            margin-bottom: 14px;
+        }
+
+        .table-title {
+            font-size: 34px;
+            line-height: 0.98;
+            margin-bottom: 4px;
+        }
+
+        .table-copy {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.65;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+            background: rgba(255, 255, 255, 0.78);
+        }
+
+        thead {
+            background: rgba(22, 23, 25, 0.04);
+        }
+
+        th,
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(22, 23, 25, 0.06);
+            text-align: left;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        th {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .empty-shell,
+        .alert-shell {
+            padding: 28px 24px;
+            text-align: center;
+        }
+
+        .empty-shell h3,
+        .alert-shell h3 {
+            font-size: 40px;
+            line-height: 0.98;
+            margin-bottom: 8px;
+        }
+
+        .alert-shell {
+            background: linear-gradient(180deg, rgba(166, 96, 80, 0.12), rgba(255, 255, 255, 0.78));
+        }
+
+        pre.raw-preview {
+            margin: 0;
+            padding: 18px;
+            border-radius: 18px;
+            background: rgba(22, 23, 25, 0.92);
+            color: rgba(248, 241, 230, 0.9);
+            font-size: 13px;
+            line-height: 1.55;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+
+        .helper-note {
+            margin-top: 10px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        @media (max-width: 1080px) {
+            .hero-stat-grid,
+            .metrics-grid,
+            .three-grid,
+            .two-grid,
+            .form-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 780px) {
+            .page-shell {
+                width: min(100% - 24px, 1220px);
+                padding-top: 18px;
+            }
+
+            .hero-shell {
+                padding: 26px 22px;
+            }
+
+            .hero-title {
+                font-size: 52px;
+            }
+
+            .hero-stat-grid,
+            .metrics-grid,
+            .three-grid,
+            .two-grid,
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .button-row {
+                flex-direction: column;
+            }
+
+            .distribution-item {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .distribution-value {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page-shell">
+        <section class="hero-shell">
+            <div class="hero-kicker">CBSE Analyzer Atelier</div>
+            <h1 class="hero-title">Premium result analysis, deployed the Vercel way.</h1>
+            <p class="hero-copy">
+                Upload the CBSE gazette, inspect the class pulse, and leave with an Excel workbook that
+                is ready to hand over. This web surface is deployment-safe for Vercel while keeping the
+                analyzer logic exactly where it belongs.
+            </p>
+            <div class="hero-pill-row">
+                <span class="hero-pill">Premium upload desk</span>
+                <span class="hero-pill">Server-rendered analysis</span>
+                <span class="hero-pill">Workbook download</span>
+            </div>
+            <div class="status-line">
+                <span class="status-chip">{{ page.source_name or "Awaiting upload" }}</span>
+                <span class="status-chip">{{ page.school_name }}</span>
+                <span class="status-chip">{{ "Download ready" if page.download_ready else "Ready for intake" }}</span>
+            </div>
+            <div class="hero-stat-grid">
+                <div class="hero-stat">
+                    <div class="hero-stat-label">Deployment path</div>
+                    <div class="hero-stat-value">Flask app</div>
+                    <div class="hero-stat-copy">Top-level WSGI app for the Vercel Python runtime.</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-label">Workbook title</div>
+                    <div class="hero-stat-value">{{ page.school_name }}</div>
+                    <div class="hero-stat-copy">The heading that lands inside the exported workbook.</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-label">Source</div>
+                    <div class="hero-stat-value">{{ page.source_name or "None yet" }}</div>
+                    <div class="hero-stat-copy">Upload a TXT gazette or explore the bundled sample.</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-label">Output</div>
+                    <div class="hero-stat-value">{{ page.output_name }}</div>
+                    <div class="hero-stat-copy">The filename used when the workbook leaves this page.</div>
+                </div>
+            </div>
+        </section>
+
+        <p class="lux-label">Control desk</p>
+        <section class="form-grid">
+            <div>
+                <div class="panel-card">
+                    <h2 class="panel-title">Bring in the raw board gazette.</h2>
+                    <p class="panel-copy">
+                        Drop the CBSE TXT export here. The analyzer will parse the batch, shape the insights,
+                        and prepare a polished workbook for download.
+                    </p>
+                    <div class="mini-chip-row">
+                        <span class="mini-chip">TXT intake</span>
+                        <span class="mini-chip">Class pulse</span>
+                        <span class="mini-chip">Excel export</span>
+                    </div>
+                </div>
+
+                <form method="post" enctype="multipart/form-data" class="panel-card">
+                    <div class="field-group">
+                        <label for="gazette_file">Upload CBSE gazette text</label>
+                        <input id="gazette_file" name="gazette_file" type="file" accept=".txt">
+                    </div>
+
+                    <div class="field-group">
+                        <label for="school_name">Workbook title</label>
+                        <input id="school_name" name="school_name" type="text" value="{{ page.school_name }}">
+                    </div>
+
+                    <div class="field-group">
+                        <label for="output_name">Download filename</label>
+                        <input id="output_name" name="output_name" type="text" value="{{ page.output_name }}">
+                    </div>
+
+                    <div class="button-row">
+                        <button class="button-primary" type="submit" name="action" value="analyze">Analyze gazette</button>
+                        <button class="button-secondary" type="submit" name="action" value="sample">Use sample file</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="panel-card-dark">
+                <h2 class="panel-title-dark">Vercel-safe by design.</h2>
+                <p class="panel-copy-dark">
+                    This deployed surface avoids the Streamlit runtime mismatch by exposing a proper Flask WSGI
+                    application, which is exactly what Vercel's Python runtime expects.
+                </p>
+                <div class="mini-chip-row">
+                    <span class="status-chip">WSGI app exposed</span>
+                    <span class="status-chip">Server-rendered upload flow</span>
+                    <span class="status-chip">Workbook generation preserved</span>
+                </div>
+            </div>
+        </section>
+
+        {% if page.error_message %}
+        <section class="alert-shell">
+            <h3>Intake needs attention.</h3>
+            <p>{{ page.error_message }}</p>
+        </section>
+        {% endif %}
+
+        {% if page.has_analysis %}
+        <p class="lux-label">Batch pulse</p>
+        <section class="metrics-grid">
+            {% for metric in page.metrics %}
+            <article class="metric-card {{ metric.tone }}">
+                <div class="metric-label">{{ metric.label }}</div>
+                <div class="metric-value">{{ metric.value }}</div>
+                <div class="metric-note">{{ metric.note }}</div>
+            </article>
+            {% endfor %}
+        </section>
+
+        <section class="two-grid">
+            <article class="spotlight-card tone-ink">
+                <div class="spotlight-brow">Export ready</div>
+                <h3 class="spotlight-title">{{ page.output_name }}</h3>
+                <p class="spotlight-copy">
+                    The workbook is ready to leave the page. It includes student data, subject analysis,
+                    school summary, and parser notes.
+                </p>
+                <div class="spotlight-chip-row">
+                    <span class="spotlight-chip">{{ page.summary["Total Candidates"] }} students parsed</span>
+                    <span class="spotlight-chip">{{ page.summary["Passed"] }} pass</span>
+                    <span class="spotlight-chip">{{ page.summary["Compartment"] }} compartment</span>
+                </div>
+                <form action="/download" method="post" style="margin-top:16px;">
+                    <textarea name="raw_payload" hidden>{{ page.raw_payload }}</textarea>
+                    <input type="hidden" name="school_name" value="{{ page.school_name }}">
+                    <input type="hidden" name="output_name" value="{{ page.output_name }}">
+                    <button class="button-primary" type="submit">Download workbook</button>
+                </form>
+            </article>
+
+            <article class="spotlight-card tone-gold">
+                <div class="spotlight-brow">Result posture</div>
+                <h3 class="spotlight-title">{{ page.summary["Passed"] }} passed</h3>
+                <p class="spotlight-copy">
+                    A premium first read of the outcome mix before you open the detailed ledgers.
+                </p>
+                <div class="distribution-list">
+                    {% for row in page.result_breakdown %}
+                    <div class="distribution-item">
+                        <div class="distribution-label">{{ row.label }}</div>
+                        <div class="distribution-track">
+                            <div class="distribution-fill" style="width: {{ row.width }}%;"></div>
+                        </div>
+                        <div class="distribution-value">{{ row.count }} / {{ row.ratio }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </article>
+        </section>
+
+        <p class="lux-label">Top performers</p>
+        <section class="three-grid">
+            {% for topper in page.toppers %}
+            <article class="student-card">
+                <div class="student-rank">{{ topper.rank }}</div>
+                <h3 class="student-name">{{ topper.name }}</h3>
+                <p class="student-meta">Roll {{ topper.roll }} and {{ topper.total_marks }} total marks</p>
+                <div class="student-score-row">
+                    <div class="student-score">{{ topper.percentage }}</div>
+                    <span class="badge {{ topper.result_class }}">{{ topper.result_label }}</span>
+                </div>
+            </article>
+            {% endfor %}
+
+            {% for _ in range(3 - page.toppers|length) %}
+            <article class="empty-shell">
+                <h3>Awaiting rank</h3>
+                <p>Additional performers will appear here when data is available.</p>
+            </article>
+            {% endfor %}
+        </section>
+
+        <p class="lux-label">Subject read</p>
+        <section class="two-grid">
+            {% if page.strongest_subject %}
+            <article class="spotlight-card tone-forest">
+                <div class="spotlight-brow">Strongest subject</div>
+                <h3 class="spotlight-title">{{ page.strongest_subject.subject_name }}</h3>
+                <p class="spotlight-copy">The strongest subject average in the uploaded batch.</p>
+                <div class="spotlight-chip-row">
+                    <span class="spotlight-chip">Code {{ page.strongest_subject.subject_code }}</span>
+                    <span class="spotlight-chip">Avg {{ page.strongest_subject.average_marks }}</span>
+                    <span class="spotlight-chip">Highest {{ page.strongest_subject.highest }}</span>
+                    <span class="spotlight-chip">Pass {{ page.strongest_subject.pass_percent }}</span>
+                </div>
+            </article>
+            {% endif %}
+
+            {% if page.weakest_subject %}
+            <article class="spotlight-card tone-gold">
+                <div class="spotlight-brow">Closest review point</div>
+                <h3 class="spotlight-title">{{ page.weakest_subject.subject_name }}</h3>
+                <p class="spotlight-copy">The lowest subject average and the first place to investigate.</p>
+                <div class="spotlight-chip-row">
+                    <span class="spotlight-chip">Code {{ page.weakest_subject.subject_code }}</span>
+                    <span class="spotlight-chip">Avg {{ page.weakest_subject.average_marks }}</span>
+                    <span class="spotlight-chip">Lowest {{ page.weakest_subject.lowest }}</span>
+                    <span class="spotlight-chip">Pass {{ page.weakest_subject.pass_percent }}</span>
+                </div>
+            </article>
+            {% endif %}
+        </section>
+
+        <section class="table-shell">
+            <div class="table-header">
+                <h3 class="table-title">Student ledger</h3>
+                <p class="table-copy">The first {{ page.student_rows|length }} rows from the normalized student table.</p>
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Roll No</th>
+                            <th>Name</th>
+                            <th>Gender</th>
+                            <th>Total Marks</th>
+                            <th>Percentage</th>
+                            <th>Subjects Appeared</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in page.student_rows %}
+                        <tr>
+                            <td>{{ row["Roll No"] }}</td>
+                            <td>{{ row["Name"] }}</td>
+                            <td>{{ row["Gender"] }}</td>
+                            <td>{{ row["Total Marks"] }}</td>
+                            <td>{{ row["Percentage"] }}</td>
+                            <td>{{ row["Subjects Appeared"] }}</td>
+                            <td>{{ row["Result"] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="table-shell">
+            <div class="table-header">
+                <h3 class="table-title">Subject pulse</h3>
+                <p class="table-copy">Average marks first, then the supporting pass-rate context.</p>
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Subject Code</th>
+                            <th>Subject Name</th>
+                            <th>Students Appeared</th>
+                            <th>Average Marks</th>
+                            <th>Highest</th>
+                            <th>Lowest</th>
+                            <th>Pass Count</th>
+                            <th>Pass %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in page.subject_rows %}
+                        <tr>
+                            <td>{{ row["Subject Code"] }}</td>
+                            <td>{{ row["Subject Name"] }}</td>
+                            <td>{{ row["Students Appeared"] }}</td>
+                            <td>{{ row["Average Marks"] }}</td>
+                            <td>{{ row["Highest"] }}</td>
+                            <td>{{ row["Lowest"] }}</td>
+                            <td>{{ row["Pass Count"] }}</td>
+                            <td>{{ row["Pass %"] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        {% if page.error_rows %}
+        <section class="table-shell">
+            <div class="table-header">
+                <h3 class="table-title">Parse notes</h3>
+                <p class="table-copy">Warnings and hard parser errors surfaced during intake.</p>
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Level</th>
+                            <th>Roll No</th>
+                            <th>Line No</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in page.error_rows %}
+                        <tr>
+                            <td>{{ row.level }}</td>
+                            <td>{{ row.roll }}</td>
+                            <td>{{ row.line_no }}</td>
+                            <td>{{ row.message }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="table-shell">
+            <div class="table-header">
+                <h3 class="table-title">Raw gazette preview</h3>
+                <p class="table-copy">A direct preview of the uploaded text for fast sanity checks.</p>
+            </div>
+            <pre class="raw-preview">{{ page.raw_preview }}</pre>
+            {% if page.raw_preview|length >= 12000 %}
+            <p class="helper-note">Preview truncated to the first 12,000 characters for readability.</p>
+            {% endif %}
+        </section>
+        {% else %}
+        <section class="empty-shell">
+            <h3>The page is ready for intake.</h3>
+            <p>Upload a CBSE gazette TXT file or use the sample mode to light up the premium analysis view.</p>
+        </section>
+        {% endif %}
+    </main>
+</body>
+</html>
