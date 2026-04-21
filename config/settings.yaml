@@ -1,0 +1,21 @@
+year: 2026
+grading_enabled: false
+performance_index_enabled: false
+absent_markers:
+  - "AA"
+  - "AB"
+  - "---"
+  - "XX"
+result_keywords:
+  - "PASS"
+  - "FAIL"
+  - "COMP"
+  - "ABSENT"
+  - "UFM"
+  - "RWH"
+  - "XXX"
+subject_config: "subjects.json"
+min_roll_length: 7
+max_roll_length: 8
+max_subjects_per_student: 8
+min_subjects_per_student: 4
