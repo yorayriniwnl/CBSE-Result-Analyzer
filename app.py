@@ -6,6 +6,7 @@ import base64
 import os
 import re
 import tempfile
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -21,14 +22,26 @@ from transformer.normalizer import build_student_dataframe
 
 
 BASE_DIR = Path(__file__).parent
-SETTINGS = load_settings(str(BASE_DIR / "config" / "settings.yaml"))
-SUBJECT_MASTER = load_subject_master(str(BASE_DIR / "config" / "subjects.json"))
-SAMPLE_TEXT = (BASE_DIR / "sample_gazette.txt").read_text(encoding="utf-8")
 RAW_PREVIEW_LIMIT = 12000
 STUDENT_PREVIEW_LIMIT = 18
 SUBJECT_PREVIEW_LIMIT = 18
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=str(BASE_DIR / "templates"))
+
+
+@lru_cache(maxsize=1)
+def _settings() -> Dict:
+    return load_settings(str(BASE_DIR / "config" / "settings.yaml"))
+
+
+@lru_cache(maxsize=1)
+def _subject_master() -> Dict[str, str]:
+    return load_subject_master(str(BASE_DIR / "config" / "subjects.json"))
+
+
+@lru_cache(maxsize=1)
+def _sample_text() -> str:
+    return (BASE_DIR / "sample_gazette.txt").read_text(encoding="utf-8")
 
 
 def _detect_school_name(raw_text: str) -> Optional[str]:
@@ -68,7 +81,7 @@ def _parse_gazette_text(raw_text: str) -> Tuple[List[Student], List[ParseError]]
         ) as handle:
             handle.write(raw_text)
             temp_path = handle.name
-        return parse_gazette(temp_path, SETTINGS)
+        return parse_gazette(temp_path, _settings())
     finally:
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
@@ -217,6 +230,7 @@ def _default_context() -> Dict[str, object]:
 
 def _build_analysis_context(raw_text: str, source_name: str, school_name: str, output_name: str) -> Dict[str, object]:
     context = _default_context()
+    subject_master = _subject_master()
     context.update(
         {
             "source_name": source_name,
@@ -234,8 +248,8 @@ def _build_analysis_context(raw_text: str, source_name: str, school_name: str, o
         context["error_message"] = "The file was read, but no student rows could be parsed."
         return context
 
-    student_df, all_codes = build_student_dataframe(students, SUBJECT_MASTER)
-    subject_df = compute_subject_analysis(students, all_codes, SUBJECT_MASTER)
+    student_df, all_codes = build_student_dataframe(students, subject_master)
+    subject_df = compute_subject_analysis(students, all_codes, subject_master)
     summary = compute_summary(students)
 
     context["has_analysis"] = True
@@ -280,7 +294,10 @@ def _submitted_payload() -> Tuple[str, str, str, str]:
     action = request.form.get("action", "analyze")
 
     if action == "sample":
-        raw_text = SAMPLE_TEXT
+        try:
+            raw_text = _sample_text()
+        except FileNotFoundError as exc:
+            raise ValueError("The bundled sample gazette file is unavailable.") from exc
         source_name = "sample_gazette.txt"
     else:
         uploaded_file = request.files.get("gazette_file")
@@ -336,7 +353,7 @@ def download_workbook():
     if not students:
         abort(400, "No students could be parsed from the submitted payload.")
 
-    workbook_bytes = export_excel_bytes(students, errors, SUBJECT_MASTER, school_name)
+    workbook_bytes = export_excel_bytes(students, errors, _subject_master(), school_name)
     return send_file(
         BytesIO(workbook_bytes),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
