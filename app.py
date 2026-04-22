@@ -168,6 +168,33 @@ def _can_use_dev_reloader() -> bool:
     return threading.current_thread() is threading.main_thread()
 
 
+def _env_flag(name: str) -> Optional[bool]:
+    value = (os.getenv(name) or "").strip().lower()
+    if not value:
+        return None
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _should_use_dev_reloader() -> bool:
+    configured = _env_flag("FLASK_DEV_USE_RELOADER")
+    if configured is not None:
+        return configured
+
+    return os.name != "nt"
+
+
+def _configured_dev_reloader_type() -> Optional[str]:
+    configured = (os.getenv("FLASK_DEV_RELOADER_TYPE") or "").strip().lower()
+    if configured in {"auto", "stat", "watchdog"}:
+        return configured
+
+    return None
+
+
 def _running_inside_streamlit() -> bool:
     if not any(module_name.startswith("streamlit") for module_name in sys.modules):
         return False
@@ -207,6 +234,16 @@ def _run_dev_entrypoint() -> None:
             "Flask dev reloader disabled because app.py is running outside the main thread."
         )
         run_options["use_reloader"] = False
+    elif not _should_use_dev_reloader():
+        app.logger.info(
+            "Flask dev reloader disabled for this environment. "
+            "Set FLASK_DEV_USE_RELOADER=1 to opt in."
+        )
+        run_options["use_reloader"] = False
+    else:
+        reloader_type = _configured_dev_reloader_type()
+        if reloader_type:
+            run_options["reloader_type"] = reloader_type
 
     app.run(**run_options)
 

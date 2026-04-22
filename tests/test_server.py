@@ -73,6 +73,26 @@ def test_run_dev_entrypoint_uses_flask(monkeypatch):
 
     monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: False)
     monkeypatch.setattr(app_module, "_can_use_dev_reloader", lambda: True)
+    monkeypatch.setattr(app_module, "_should_use_dev_reloader", lambda: True)
+    monkeypatch.setattr(app_module, "_configured_dev_reloader_type", lambda: None)
+    monkeypatch.setattr(app_module.app, "run", fake_run)
+
+    app_module._run_dev_entrypoint()
+
+    assert calls["flask"] == 1
+
+
+def test_run_dev_entrypoint_passes_configured_reloader_type(monkeypatch):
+    calls = {"flask": 0}
+
+    def fake_run(**kwargs):
+        calls["flask"] += 1
+        assert kwargs == {"debug": True, "reloader_type": "stat"}
+
+    monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: False)
+    monkeypatch.setattr(app_module, "_can_use_dev_reloader", lambda: True)
+    monkeypatch.setattr(app_module, "_should_use_dev_reloader", lambda: True)
+    monkeypatch.setattr(app_module, "_configured_dev_reloader_type", lambda: "stat")
     monkeypatch.setattr(app_module.app, "run", fake_run)
 
     app_module._run_dev_entrypoint()
@@ -89,6 +109,23 @@ def test_run_dev_entrypoint_disables_reloader_off_main_thread(monkeypatch):
 
     monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: False)
     monkeypatch.setattr(app_module, "_can_use_dev_reloader", lambda: False)
+    monkeypatch.setattr(app_module.app, "run", fake_run)
+
+    app_module._run_dev_entrypoint()
+
+    assert calls["flask"] == 1
+
+
+def test_run_dev_entrypoint_disables_reloader_when_env_prefers_it(monkeypatch):
+    calls = {"flask": 0}
+
+    def fake_run(**kwargs):
+        calls["flask"] += 1
+        assert kwargs == {"debug": True, "use_reloader": False}
+
+    monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: False)
+    monkeypatch.setattr(app_module, "_can_use_dev_reloader", lambda: True)
+    monkeypatch.setattr(app_module, "_should_use_dev_reloader", lambda: False)
     monkeypatch.setattr(app_module.app, "run", fake_run)
 
     app_module._run_dev_entrypoint()
@@ -114,6 +151,39 @@ def test_run_dev_entrypoint_shows_notice_inside_streamlit(monkeypatch):
 
     assert calls["notice"] == 1
     assert calls["flask"] == 0
+
+
+def test_should_use_dev_reloader_defaults_off_on_windows(monkeypatch):
+    monkeypatch.delenv("FLASK_DEV_USE_RELOADER", raising=False)
+    monkeypatch.setattr(app_module.os, "name", "nt", raising=False)
+
+    assert app_module._should_use_dev_reloader() is False
+
+
+def test_should_use_dev_reloader_can_be_enabled_via_env(monkeypatch):
+    monkeypatch.setenv("FLASK_DEV_USE_RELOADER", "1")
+    monkeypatch.setattr(app_module.os, "name", "nt", raising=False)
+
+    assert app_module._should_use_dev_reloader() is True
+
+
+def test_should_use_dev_reloader_can_be_disabled_via_env(monkeypatch):
+    monkeypatch.setenv("FLASK_DEV_USE_RELOADER", "0")
+    monkeypatch.setattr(app_module.os, "name", "posix", raising=False)
+
+    assert app_module._should_use_dev_reloader() is False
+
+
+def test_configured_dev_reloader_type_respects_env_override(monkeypatch):
+    monkeypatch.setenv("FLASK_DEV_RELOADER_TYPE", "watchdog")
+
+    assert app_module._configured_dev_reloader_type() == "watchdog"
+
+
+def test_configured_dev_reloader_type_ignores_invalid_override(monkeypatch):
+    monkeypatch.setenv("FLASK_DEV_RELOADER_TYPE", "banana")
+
+    assert app_module._configured_dev_reloader_type() is None
 
 
 def test_streamlit_detection_uses_runtime_context(monkeypatch):
