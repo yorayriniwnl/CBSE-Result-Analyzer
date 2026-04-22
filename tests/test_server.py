@@ -14,10 +14,19 @@ def test_home_page_loads():
 
     assert response.status_code == 200
     assert b"CBSE Analyzer Atelier" in response.data
+    assert app_module.PUBLIC_GITHUB_URL.encode("utf-8") in response.data
+    assert b"View on GitHub" in response.data
 
 
 def test_server_entrypoint_exposes_same_flask_app():
     assert server_app is app
+
+
+def test_default_context_exposes_github_link():
+    page = app_module._default_context()
+
+    assert page["github_url"] == app_module.PUBLIC_GITHUB_URL
+    assert page["github_label"] == app_module.PUBLIC_GITHUB_LABEL
 
 
 def test_healthz_reports_runtime_resources():

@@ -35,6 +35,11 @@ PAYLOAD_ENCODING_PREFIX = "z1:"
 VERCEL_FUNCTION_BODY_LIMIT_BYTES = 4_500_000
 DEFAULT_MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 DEFAULT_MAX_ROUNDTRIP_PAYLOAD_BYTES = 3_500_000
+PUBLIC_GITHUB_URL = os.getenv(
+    "PUBLIC_GITHUB_URL",
+    "https://github.com/yorayriniwnl/CBSE-Result-Analyzer",
+)
+PUBLIC_GITHUB_LABEL = os.getenv("PUBLIC_GITHUB_LABEL", "View on GitHub")
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(DEFAULT_MAX_UPLOAD_BYTES)))
 MAX_ROUNDTRIP_PAYLOAD_BYTES = int(
     os.getenv(
@@ -318,6 +323,8 @@ def _default_context() -> Dict[str, object]:
         "source_name": None,
         "school_name": "CBSE Results 2026",
         "output_name": "CBSE_Result_Analysis.xlsx",
+        "github_url": PUBLIC_GITHUB_URL,
+        "github_label": PUBLIC_GITHUB_LABEL,
         "error_message": None,
         "download_ready": False,
         "metrics": [],
