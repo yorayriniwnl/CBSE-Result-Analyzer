@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/cbse-result-analyzer",
+      "destination": "https://cbse-result-analyzer.vercel.app/"
+    },
+    {
+      "source": "/cbse-result-analyzer/",
+      "destination": "https://cbse-result-analyzer.vercel.app/"
+    },
+    {
+      "source": "/cbse-result-analyzer/:path*",
+      "destination": "https://cbse-result-analyzer.vercel.app/:path*"
+    }
+  ]
+}

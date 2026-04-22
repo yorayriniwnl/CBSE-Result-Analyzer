@@ -6,6 +6,7 @@ import base64
 import logging
 import os
 import re
+import sys
 import tempfile
 import zlib
 from functools import lru_cache
@@ -14,7 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-from flask import Flask, abort, render_template, request, send_file
+from flask import Flask, abort, has_request_context, render_template, request, send_file
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from config.loader import load_settings, load_subject_master
@@ -40,6 +41,16 @@ PUBLIC_GITHUB_URL = os.getenv(
     "https://github.com/yorayriniwnl/CBSE-Result-Analyzer",
 )
 PUBLIC_GITHUB_LABEL = os.getenv("PUBLIC_GITHUB_LABEL", "View on GitHub")
+PUBLIC_VERCEL_URL = os.getenv(
+    "PUBLIC_VERCEL_URL",
+    "https://cbse-result-analyzer.vercel.app/",
+)
+PUBLIC_VERCEL_LABEL = os.getenv("PUBLIC_VERCEL_LABEL", "Open Live Demo")
+PUBLIC_BASE_PATH = os.getenv("PUBLIC_BASE_PATH", "/cbse-result-analyzer")
+PUBLIC_BASE_PATH_HOSTS = os.getenv(
+    "PUBLIC_BASE_PATH_HOSTS",
+    "yorayriniwnl.in,www.yorayriniwnl.in",
+)
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(DEFAULT_MAX_UPLOAD_BYTES)))
 MAX_ROUNDTRIP_PAYLOAD_BYTES = int(
     os.getenv(
@@ -91,6 +102,101 @@ def _size_limit_message() -> str:
         f"Vercel Functions reject request or response bodies above "
         f"{VERCEL_FUNCTION_BODY_LIMIT_BYTES / 1_000_000:.1f} MB."
     )
+
+
+def _normalize_public_base_path(path: str) -> str:
+    cleaned = (path or "").strip()
+    if not cleaned or cleaned == "/":
+        return ""
+    if not cleaned.startswith("/"):
+        cleaned = f"/{cleaned}"
+    return cleaned.rstrip("/")
+
+
+@lru_cache(maxsize=1)
+def _configured_public_base_path_hosts() -> set[str]:
+    return {
+        host.strip().lower()
+        for host in PUBLIC_BASE_PATH_HOSTS.split(",")
+        if host.strip()
+    }
+
+
+def _header_public_base_path() -> str:
+    if not has_request_context():
+        return ""
+
+    candidate = _normalize_public_base_path(
+        request.headers.get("X-Forwarded-Prefix", "")
+    )
+    if not candidate:
+        return ""
+    if any(token in candidate for token in ("//", "://", "?", "#", " ")):
+        return ""
+    return candidate
+
+
+def _request_public_base_path() -> str:
+    proxied_prefix = _header_public_base_path()
+    if proxied_prefix:
+        return proxied_prefix
+
+    if not has_request_context():
+        return ""
+
+    configured_prefix = _normalize_public_base_path(PUBLIC_BASE_PATH)
+    if not configured_prefix:
+        return ""
+
+    request_host = (request.headers.get("X-Forwarded-Host") or request.host).split(
+        ":", 1
+    )[0].lower()
+    if request_host in _configured_public_base_path_hosts():
+        return configured_prefix
+    return ""
+
+
+def _public_route(path: str) -> str:
+    prefix = _request_public_base_path()
+    if path == "/":
+        return prefix or "/"
+    return f"{prefix}{path}" if prefix else path
+
+
+def _running_inside_streamlit() -> bool:
+    if not any(module_name.startswith("streamlit") for module_name in sys.modules):
+        return False
+
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+    except Exception:
+        return True
+
+    return get_script_run_ctx() is not None
+
+
+def _render_streamlit_entrypoint_notice() -> None:
+    import streamlit as st
+
+    st.set_page_config(
+        page_title="Use streamlit_app.py",
+        page_icon="C",
+        layout="centered",
+    )
+    st.error("`app.py` is the Flask/Vercel entrypoint, not the Streamlit app.")
+    st.code("python -m streamlit run streamlit_app.py", language="bash")
+    st.caption(
+        "Use `python app.py` for local Flask runs, or `streamlit run streamlit_app.py` "
+        "for the Streamlit studio."
+    )
+
+
+def _run_dev_entrypoint() -> None:
+    if _running_inside_streamlit():
+        _render_streamlit_entrypoint_notice()
+        return
+
+    app.run(debug=True)
 
 
 def _resource_report() -> Dict[str, object]:
@@ -325,6 +431,10 @@ def _default_context() -> Dict[str, object]:
         "output_name": "CBSE_Result_Analysis.xlsx",
         "github_url": PUBLIC_GITHUB_URL,
         "github_label": PUBLIC_GITHUB_LABEL,
+        "vercel_url": PUBLIC_VERCEL_URL,
+        "vercel_label": PUBLIC_VERCEL_LABEL,
+        "home_url": _public_route("/"),
+        "download_url": _public_route("/download"),
         "error_message": None,
         "download_ready": False,
         "metrics": [],
@@ -439,6 +549,7 @@ def _submitted_payload() -> Tuple[str, str, str, str]:
 
 
 @app.get("/")
+@app.get("/cbse-result-analyzer")
 def home():
     try:
         return render_template("index.html", page=_default_context())
@@ -456,11 +567,13 @@ def healthz():
 
 
 @app.get("/favicon.ico")
+@app.get("/cbse-result-analyzer/favicon.ico")
 def favicon():
     return ("", 204)
 
 
 @app.post("/")
+@app.post("/cbse-result-analyzer")
 def analyze():
     status_code = 200
     try:
@@ -479,6 +592,7 @@ def analyze():
 
 
 @app.post("/download")
+@app.post("/cbse-result-analyzer/download")
 def download_workbook():
     try:
         raw_payload = request.form.get("raw_payload", "")
@@ -515,4 +629,4 @@ def payload_too_large(_: RequestEntityTooLarge):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    _run_dev_entrypoint()

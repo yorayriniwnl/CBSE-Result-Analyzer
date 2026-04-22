@@ -779,6 +779,9 @@
                 <span class="hero-pill">Workbook download</span>
             </div>
             <div class="hero-action-row">
+                <a class="hero-link" href="{{ page.vercel_url }}" target="_blank" rel="noreferrer noopener">
+                    {{ page.vercel_label }}
+                </a>
                 <a class="hero-link" href="{{ page.github_url }}" target="_blank" rel="noreferrer noopener">
                     {{ page.github_label }}
                 </a>
@@ -828,7 +831,7 @@
                     </div>
                 </div>
 
-                <form method="post" enctype="multipart/form-data" class="panel-card">
+                <form action="{{ page.home_url }}" method="post" enctype="multipart/form-data" class="panel-card">
                     <div class="field-group">
                         <label for="gazette_file">Upload CBSE gazette text</label>
                         <input id="gazette_file" name="gazette_file" type="file" accept=".txt">
@@ -863,6 +866,9 @@
                     <span class="status-chip">Workbook generation preserved</span>
                 </div>
                 <div class="hero-action-row">
+                    <a class="hero-link" href="{{ page.vercel_url }}" target="_blank" rel="noreferrer noopener">
+                        {{ page.vercel_label }}
+                    </a>
                     <a class="hero-link" href="{{ page.github_url }}" target="_blank" rel="noreferrer noopener">
                         {{ page.github_label }}
                     </a>
@@ -902,7 +908,7 @@
                     <span class="spotlight-chip">{{ page.summary["Passed"] }} pass</span>
                     <span class="spotlight-chip">{{ page.summary["Compartment"] }} compartment</span>
                 </div>
-                <form action="/download" method="post" style="margin-top:16px;">
+                <form action="{{ page.download_url }}" method="post" style="margin-top:16px;">
                     <textarea name="raw_payload" hidden>{{ page.raw_payload }}</textarea>
                     <input type="hidden" name="school_name" value="{{ page.school_name }}">
                     <input type="hidden" name="output_name" value="{{ page.output_name }}">

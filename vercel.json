@@ -1,4 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "flask"
+  "framework": "flask",
+  "rewrites": [
+    {
+      "source": "/cbse-result-analyzer",
+      "destination": "/"
+    },
+    {
+      "source": "/cbse-result-analyzer/",
+      "destination": "/"
+    },
+    {
+      "source": "/cbse-result-analyzer/download",
+      "destination": "/download"
+    },
+    {
+      "source": "/cbse-result-analyzer/favicon.ico",
+      "destination": "/favicon.ico"
+    }
+  ]
 }

@@ -1,4 +1,5 @@
 import base64
+import types
 from io import BytesIO
 
 import pandas as pd
@@ -14,8 +15,18 @@ def test_home_page_loads():
 
     assert response.status_code == 200
     assert b"CBSE Analyzer Atelier" in response.data
+    assert app_module.PUBLIC_VERCEL_URL.encode("utf-8") in response.data
+    assert b"Open Live Demo" in response.data
     assert app_module.PUBLIC_GITHUB_URL.encode("utf-8") in response.data
     assert b"View on GitHub" in response.data
+
+
+def test_prefixed_home_page_loads():
+    client = app.test_client()
+    response = client.get("/cbse-result-analyzer")
+
+    assert response.status_code == 200
+    assert b"CBSE Analyzer Atelier" in response.data
 
 
 def test_server_entrypoint_exposes_same_flask_app():
@@ -25,8 +36,89 @@ def test_server_entrypoint_exposes_same_flask_app():
 def test_default_context_exposes_github_link():
     page = app_module._default_context()
 
+    assert page["vercel_url"] == app_module.PUBLIC_VERCEL_URL
+    assert page["vercel_label"] == app_module.PUBLIC_VERCEL_LABEL
     assert page["github_url"] == app_module.PUBLIC_GITHUB_URL
     assert page["github_label"] == app_module.PUBLIC_GITHUB_LABEL
+    assert page["home_url"] == "/"
+    assert page["download_url"] == "/download"
+
+
+def test_default_context_uses_custom_domain_base_path():
+    with app.test_request_context("/", base_url="https://yorayriniwnl.in"):
+        page = app_module._default_context()
+
+    assert page["home_url"] == "/cbse-result-analyzer"
+    assert page["download_url"] == "/cbse-result-analyzer/download"
+
+
+def test_forwarded_prefix_header_overrides_host_mapping():
+    with app.test_request_context(
+        "/",
+        base_url="https://cbse-result-analyzer.vercel.app",
+        headers={"X-Forwarded-Prefix": "/proxy-prefix"},
+    ):
+        page = app_module._default_context()
+
+    assert page["home_url"] == "/proxy-prefix"
+    assert page["download_url"] == "/proxy-prefix/download"
+
+
+def test_streamlit_detection_is_false_in_normal_test_runtime():
+    assert app_module._running_inside_streamlit() is False
+
+
+def test_run_dev_entrypoint_uses_flask_when_not_in_streamlit(monkeypatch):
+    calls = {"flask": 0}
+
+    monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: False)
+    monkeypatch.setattr(app_module, "_render_streamlit_entrypoint_notice", lambda: None)
+
+    def fake_run(**kwargs):
+        calls["flask"] += 1
+        assert kwargs == {"debug": True}
+
+    monkeypatch.setattr(app_module.app, "run", fake_run)
+
+    app_module._run_dev_entrypoint()
+
+    assert calls["flask"] == 1
+
+
+def test_run_dev_entrypoint_shows_notice_inside_streamlit(monkeypatch):
+    calls = {"notice": 0, "flask": 0}
+
+    monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: True)
+
+    def fake_notice():
+        calls["notice"] += 1
+
+    def fake_run(**kwargs):
+        calls["flask"] += 1
+
+    monkeypatch.setattr(app_module, "_render_streamlit_entrypoint_notice", fake_notice)
+    monkeypatch.setattr(app_module.app, "run", fake_run)
+
+    app_module._run_dev_entrypoint()
+
+    assert calls["notice"] == 1
+    assert calls["flask"] == 0
+
+
+def test_streamlit_detection_uses_runtime_context(monkeypatch):
+    fake_runtime = types.ModuleType("streamlit.runtime")
+    fake_scriptrunner = types.ModuleType("streamlit.runtime.scriptrunner")
+    fake_scriptrunner.get_script_run_ctx = lambda: object()
+
+    monkeypatch.setitem(app_module.sys.modules, "streamlit", types.ModuleType("streamlit"))
+    monkeypatch.setitem(app_module.sys.modules, "streamlit.runtime", fake_runtime)
+    monkeypatch.setitem(
+        app_module.sys.modules,
+        "streamlit.runtime.scriptrunner",
+        fake_scriptrunner,
+    )
+
+    assert app_module._running_inside_streamlit() is True
 
 
 def test_healthz_reports_runtime_resources():
@@ -49,6 +141,14 @@ def test_favicon_route_returns_no_content():
     assert response.data == b""
 
 
+def test_prefixed_favicon_route_returns_no_content():
+    client = app.test_client()
+    response = client.get("/cbse-result-analyzer/favicon.ico")
+
+    assert response.status_code == 204
+    assert response.data == b""
+
+
 def test_sample_analysis_renders_results():
     client = app.test_client()
     response = client.post("/", data={"action": "sample"})
@@ -57,6 +157,35 @@ def test_sample_analysis_renders_results():
     assert b"sample_gazette.txt" in response.data
     assert b"Student ledger" in response.data
     assert b"Download workbook" in response.data
+
+
+def test_prefixed_sample_analysis_renders_results():
+    client = app.test_client()
+    response = client.post("/cbse-result-analyzer", data={"action": "sample"})
+
+    assert response.status_code == 200
+    assert b"sample_gazette.txt" in response.data
+    assert b"Download workbook" in response.data
+
+
+def test_custom_domain_home_uses_prefixed_form_action():
+    client = app.test_client()
+    response = client.get("/", base_url="https://yorayriniwnl.in")
+
+    assert response.status_code == 200
+    assert b'action="/cbse-result-analyzer"' in response.data
+
+
+def test_custom_domain_download_action_is_prefixed():
+    client = app.test_client()
+    response = client.post(
+        "/",
+        data={"action": "sample"},
+        base_url="https://yorayriniwnl.in",
+    )
+
+    assert response.status_code == 200
+    assert b'action="/cbse-result-analyzer/download"' in response.data
 
 
 def test_sample_mode_missing_resource_shows_error(monkeypatch):
@@ -97,6 +226,32 @@ def test_download_route_returns_workbook():
     assert response.status_code == 200
     assert response.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     assert response.headers["Content-Disposition"].endswith('filename=sample_analysis.xlsx')
+
+
+def test_prefixed_download_route_returns_workbook():
+    client = app.test_client()
+    analyze_response = client.post("/cbse-result-analyzer", data={"action": "sample"})
+    assert analyze_response.status_code == 200
+
+    raw_payload_marker = b'name="raw_payload" hidden>'
+    marker_index = analyze_response.data.find(raw_payload_marker)
+    assert marker_index != -1
+
+    payload_start = marker_index + len(raw_payload_marker)
+    payload_end = analyze_response.data.find(b"</textarea>", payload_start)
+    raw_payload = analyze_response.data[payload_start:payload_end].decode("utf-8")
+
+    response = client.post(
+        "/cbse-result-analyzer/download",
+        data={
+            "raw_payload": raw_payload,
+            "school_name": "CBSE Results 2026",
+            "output_name": "sample_analysis.xlsx",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def test_download_route_rejects_invalid_payload():
