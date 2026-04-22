@@ -4,3 +4,4 @@ __pycache__/
 tests/
 *.xlsx
 streamlit_app.py
+requirements-dev.txt
