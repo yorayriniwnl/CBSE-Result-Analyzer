@@ -75,8 +75,12 @@ def build_student_dataframe(
     null values so direct row comparisons stay simple.
     """
     dataframe, all_codes = build_normalized_table(students, subject_master)
-    display_df = dataframe.copy()
+    return to_display_table(dataframe), all_codes
 
+
+def to_display_table(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Render subject columns with blanks for untaken subjects."""
+    display_df = dataframe.copy()
     subject_columns = [
         column
         for column in display_df.columns
@@ -84,5 +88,4 @@ def build_student_dataframe(
     ]
     if subject_columns:
         display_df[subject_columns] = display_df[subject_columns].fillna("")
-
-    return display_df, all_codes
+    return display_df

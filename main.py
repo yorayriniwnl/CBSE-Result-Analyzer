@@ -4,15 +4,14 @@ Usage:
     python main.py <gazette.txt> [output.xlsx] [--school "School Name"]
 """
 
-import sys
 from pathlib import Path
 
-# Make sure sub-packages are importable
-sys.path.insert(0, str(Path(__file__).parent))
-
-from config.loader import load_settings, load_subject_master
 from exporter.excel_writer import write_excel
-from parser.gazette_parser import parse_gazette
+from services.analyzer_service import (
+    DEFAULT_SCHOOL_NAME,
+    analyze_gazette_text,
+    get_subject_master,
+)
 
 
 def main():
@@ -28,27 +27,27 @@ def main():
     )
     parser.add_argument(
         "--school",
-        default="CBSE Results 2026",
+        default=DEFAULT_SCHOOL_NAME,
         help="School name for title row",
     )
     args = parser.parse_args()
 
-    config_dir = Path(__file__).parent / "config"
-    subject_master = load_subject_master(str(config_dir / "subjects.json"))
-    settings = load_settings(str(config_dir / "settings.yaml"))
+    input_path = Path(args.input)
+    raw_text = input_path.read_text(encoding="utf-8", errors="replace")
+    subject_master = get_subject_master()
 
     print(f"Parsing: {args.input}")
-    students, errors = parse_gazette(args.input, settings)
+    analysis = analyze_gazette_text(raw_text, subject_master=subject_master)
 
-    if not students:
+    if not analysis.students:
         print("ERROR: No students parsed. Check the file format.")
-        sys.exit(1)
+        raise SystemExit(1)
 
-    print(f"   Found {len(students)} students, {len(errors)} parse issues")
+    print(f"   Found {len(analysis.students)} students, {len(analysis.errors)} parse issues")
     print(f"Generating Excel: {args.output}")
     write_excel(
-        students=students,
-        errors=errors,
+        students=analysis.students,
+        errors=analysis.errors,
         subject_master=subject_master,
         output_path=args.output,
         school_name=args.school,

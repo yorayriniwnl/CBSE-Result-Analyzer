@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import base64
+import html
 import logging
 import os
-import re
 import sys
-import tempfile
 import threading
 import zlib
 from functools import lru_cache
@@ -19,17 +18,24 @@ import pandas as pd
 from flask import Flask, abort, has_request_context, render_template, request, send_file
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
-from config.loader import load_settings, load_subject_master
 from exporter.excel_writer import export_excel_bytes
-from parser.gazette_parser import ParseError, Student, parse_gazette
-from transformer.calculator import compute_subject_analysis, compute_summary
-from transformer.normalizer import build_student_dataframe
+from parser.gazette_parser import ParseError
+from services.analyzer_service import (
+    DEFAULT_OUTPUT_NAME,
+    DEFAULT_SCHOOL_NAME,
+    analyze_gazette_text,
+    detect_school_name,
+    ensure_output_name,
+    get_sample_text,
+    get_settings,
+    get_subject_master,
+    pass_rate_note,
+    select_topper_rows,
+    serialize_error_rows,
+)
 
 
 BASE_DIR = Path(__file__).parent
-SETTINGS_PATH = BASE_DIR / "config" / "settings.yaml"
-SUBJECTS_PATH = BASE_DIR / "config" / "subjects.json"
-SAMPLE_PATH = BASE_DIR / "sample_gazette.txt"
 RAW_PREVIEW_LIMIT = 12000
 STUDENT_PREVIEW_LIMIT = 18
 SUBJECT_PREVIEW_LIMIT = 18
@@ -72,25 +78,52 @@ app.logger.setLevel(_configured_log_level())
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 
 
-@lru_cache(maxsize=1)
 def _settings() -> Dict:
-    return load_settings(str(SETTINGS_PATH))
+    return get_settings()
 
 
-@lru_cache(maxsize=1)
 def _subject_master() -> Dict[str, str]:
-    return load_subject_master(str(SUBJECTS_PATH))
+    return get_subject_master()
 
 
-@lru_cache(maxsize=1)
 def _sample_text() -> str:
-    return SAMPLE_PATH.read_text(encoding="utf-8")
+    return get_sample_text()
 
 
 def _error_page(message: str) -> Dict[str, object]:
     page = _default_context()
     page["error_message"] = message
     return page
+
+
+def _render_page(page: Dict[str, object], status_code: int = 200):
+    try:
+        return render_template("index.html", page=page), status_code
+    except Exception:
+        app.logger.exception("Failed to render HTML page.")
+        message = html.escape(
+            str(
+                page.get("error_message")
+                or "The analyzer interface is temporarily unavailable."
+            )
+        )
+        fallback_html = f"""<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CBSE Analyzer</title>
+</head>
+<body style="margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f8f3ed;color:#101522;">
+    <main style="max-width:720px;margin:8vh auto;padding:24px;">
+        <h1 style="margin:0 0 12px;">CBSE Analyzer</h1>
+        <p style="margin:0 0 10px;line-height:1.6;">{message}</p>
+        <p style="margin:0;line-height:1.6;">Refresh the page or check <code>/healthz</code> for a quick runtime status check.</p>
+    </main>
+</body>
+</html>"""
+        fallback_status = status_code if status_code >= 400 else 500
+        return fallback_html, fallback_status, {"Content-Type": "text/html; charset=utf-8"}
 
 
 def _format_mib(num_bytes: int) -> str:
@@ -251,13 +284,13 @@ def _run_dev_entrypoint() -> None:
 def _resource_report() -> Dict[str, object]:
     report: Dict[str, object] = {
         "base_dir": str(BASE_DIR),
-        "settings_path": str(SETTINGS_PATH),
-        "subjects_path": str(SUBJECTS_PATH),
-        "sample_path": str(SAMPLE_PATH),
+        "settings_path": str(BASE_DIR / "config" / "settings.yaml"),
+        "subjects_path": str(BASE_DIR / "config" / "subjects.json"),
+        "sample_path": str(BASE_DIR / "sample_gazette.txt"),
         "templates_path": str(BASE_DIR / "templates"),
-        "settings_exists": SETTINGS_PATH.exists(),
-        "subjects_exists": SUBJECTS_PATH.exists(),
-        "sample_exists": SAMPLE_PATH.exists(),
+        "settings_exists": (BASE_DIR / "config" / "settings.yaml").exists(),
+        "subjects_exists": (BASE_DIR / "config" / "subjects.json").exists(),
+        "sample_exists": (BASE_DIR / "sample_gazette.txt").exists(),
         "templates_exists": (BASE_DIR / "templates" / "index.html").exists(),
     }
 
@@ -283,17 +316,11 @@ def _resource_report() -> Dict[str, object]:
 
 
 def _detect_school_name(raw_text: str) -> Optional[str]:
-    match = re.search(r"^SCHOOL\s*:\s*-\s*\d+\s+(.*)$", raw_text, re.MULTILINE)
-    if match:
-        return match.group(1).strip()
-    return None
+    return detect_school_name(raw_text)
 
 
 def _ensure_output_name(name: str) -> str:
-    clean_name = (name or "").strip() or "CBSE_Result_Analysis.xlsx"
-    if not clean_name.lower().endswith(".xlsx"):
-        clean_name = f"{clean_name}.xlsx"
-    return clean_name
+    return ensure_output_name(name)
 
 
 def _encode_payload(raw_text: str) -> str:
@@ -311,25 +338,6 @@ def _decode_payload(payload: str) -> str:
         return decoded.decode("utf-8")
     except Exception as exc:  # pragma: no cover - defensive path
         raise ValueError("Invalid workbook payload.") from exc
-
-
-def _parse_gazette_text(raw_text: str) -> Tuple[List[Student], List[ParseError]]:
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".txt",
-            delete=False,
-            encoding="utf-8",
-            newline="\n",
-        ) as handle:
-            handle.write(raw_text)
-            temp_path = handle.name
-        return parse_gazette(temp_path, _settings())
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
-
 
 def _coerce_student_preview(student_df: pd.DataFrame) -> List[Dict[str, str]]:
     preview = student_df.loc[
@@ -357,20 +365,7 @@ def _coerce_student_preview(student_df: pd.DataFrame) -> List[Dict[str, str]]:
 
 
 def _prepare_toppers(student_df: pd.DataFrame) -> List[Dict[str, str]]:
-    sortable = student_df.copy()
-    sortable["Percentage"] = pd.to_numeric(sortable["Percentage"], errors="coerce")
-    sortable["Total Marks"] = pd.to_numeric(sortable["Total Marks"], errors="coerce")
-    sortable["Result"] = sortable["Result"].astype(str).str.upper()
-
-    eligible = sortable[sortable["Result"] == "PASS"]
-    if eligible.empty:
-        eligible = sortable[sortable["Percentage"].notna()]
-
-    toppers = eligible.sort_values(
-        ["Percentage", "Total Marks"],
-        ascending=[False, False],
-        na_position="last",
-    ).head(3)
+    toppers = select_topper_rows(student_df)
 
     items: List[Dict[str, str]] = []
     for rank, (_, row) in enumerate(toppers.iterrows(), start=1):
@@ -408,14 +403,15 @@ def _prepare_subject_rows(subject_df: pd.DataFrame) -> List[Dict[str, str]]:
 
 
 def _prepare_error_rows(errors: List[ParseError]) -> List[Dict[str, str]]:
+    rows = serialize_error_rows(errors)
     return [
         {
-            "level": error.level,
-            "roll": error.roll,
-            "line_no": str(error.line_no),
-            "message": error.message,
+            "level": str(row["Level"]),
+            "roll": str(row["Roll No"]),
+            "line_no": str(row["Line No"]),
+            "message": str(row["Message"]),
         }
-        for error in errors
+        for row in rows
     ]
 
 
@@ -446,14 +442,7 @@ def _result_breakdown(summary: Dict[str, object]) -> List[Dict[str, str]]:
 
 
 def _pass_rate_note(summary: Dict[str, object]) -> str:
-    note = (
-        f'{summary["Passed"]} pass, {summary["Failed"]} fail, '
-        f'{summary["Compartment"]} compartment'
-    )
-    other_results = int(summary.get("Other Results", 0) or 0)
-    if other_results:
-        note += f", {other_results} other"
-    return f"{note}."
+    return pass_rate_note(summary)
 
 
 def _subject_spotlight(subject_df: pd.DataFrame, strongest: bool) -> Optional[Dict[str, str]]:
@@ -476,8 +465,8 @@ def _default_context() -> Dict[str, object]:
     return {
         "has_analysis": False,
         "source_name": None,
-        "school_name": "CBSE Results 2026",
-        "output_name": "CBSE_Result_Analysis.xlsx",
+        "school_name": DEFAULT_SCHOOL_NAME,
+        "output_name": DEFAULT_OUTPUT_NAME,
         "github_url": PUBLIC_GITHUB_URL,
         "github_label": PUBLIC_GITHUB_LABEL,
         "vercel_url": PUBLIC_VERCEL_URL,
@@ -523,7 +512,6 @@ def _guard_roundtrip_payload(payload: str) -> None:
 
 def _build_analysis_context(raw_text: str, source_name: str, school_name: str, output_name: str) -> Dict[str, object]:
     context = _default_context()
-    subject_master = _subject_master()
     raw_payload = _encode_payload(raw_text)
     _guard_roundtrip_payload(raw_payload)
     context.update(
@@ -536,16 +524,20 @@ def _build_analysis_context(raw_text: str, source_name: str, school_name: str, o
         }
     )
 
-    students, errors = _parse_gazette_text(raw_text)
-    context["error_rows"] = _prepare_error_rows(errors)
+    analysis = analyze_gazette_text(
+        raw_text,
+        subject_master=_subject_master(),
+        settings=_settings(),
+    )
+    context["error_rows"] = _prepare_error_rows(analysis.errors)
 
-    if not students:
+    if not analysis.students:
         context["error_message"] = "The file was read, but no student rows could be parsed."
         return context
 
-    student_df, all_codes = build_student_dataframe(students, subject_master)
-    subject_df = compute_subject_analysis(students, all_codes, subject_master)
-    summary = compute_summary(students)
+    student_df = analysis.student_df
+    subject_df = analysis.subject_df
+    summary = analysis.summary
 
     context["has_analysis"] = True
     context["download_ready"] = True
@@ -565,13 +557,13 @@ def _build_analysis_context(raw_text: str, source_name: str, school_name: str, o
         },
         {
             "label": "Subjects",
-            "value": str(len(all_codes)),
+            "value": str(len(analysis.all_codes)),
             "note": "Unique subjects discovered directly from the uploaded gazette.",
             "tone": "ink",
         },
         {
             "label": "Parser Notes",
-            "value": str(len(errors)),
+            "value": str(len(analysis.errors)),
             "note": "Warnings and hard parser issues surfaced during intake.",
             "tone": "gold",
         },
@@ -601,7 +593,7 @@ def _submitted_payload() -> Tuple[str, str, str, str]:
         raw_text = uploaded_file.read().decode("utf-8", errors="replace")
         source_name = uploaded_file.filename
 
-    suggested_school = _detect_school_name(raw_text) or "CBSE Results 2026"
+    suggested_school = _detect_school_name(raw_text) or DEFAULT_SCHOOL_NAME
     school_name = (request.form.get("school_name") or "").strip() or suggested_school
     suggested_output = f"{Path(source_name).stem}_analysis.xlsx"
     output_name = _ensure_output_name((request.form.get("output_name") or "").strip() or suggested_output)
@@ -611,11 +603,7 @@ def _submitted_payload() -> Tuple[str, str, str, str]:
 @app.get("/")
 @app.get("/cbse-result-analyzer")
 def home():
-    try:
-        return render_template("index.html", page=_default_context())
-    except Exception:
-        app.logger.exception("Failed to render home page.")
-        raise
+    return _render_page(_default_context())
 
 
 @app.get("/healthz")
@@ -648,7 +636,7 @@ def analyze():
         app.logger.exception("Unexpected failure while analyzing gazette input.")
         page = _error_page("The analyzer hit an unexpected error while processing the file.")
 
-    return render_template("index.html", page=page), status_code
+    return _render_page(page, status_code)
 
 
 @app.post("/download")
@@ -660,14 +648,27 @@ def download_workbook():
             abort(400, "Missing workbook payload.")
 
         raw_text = _decode_payload(raw_payload)
-        school_name = (request.form.get("school_name") or "").strip() or _detect_school_name(raw_text) or "CBSE Results 2026"
-        output_name = _ensure_output_name(request.form.get("output_name", "CBSE_Result_Analysis.xlsx"))
+        school_name = (
+            (request.form.get("school_name") or "").strip()
+            or _detect_school_name(raw_text)
+            or DEFAULT_SCHOOL_NAME
+        )
+        output_name = _ensure_output_name(request.form.get("output_name", DEFAULT_OUTPUT_NAME))
 
-        students, errors = _parse_gazette_text(raw_text)
-        if not students:
+        analysis = analyze_gazette_text(
+            raw_text,
+            subject_master=_subject_master(),
+            settings=_settings(),
+        )
+        if not analysis.students:
             abort(400, "No students could be parsed from the submitted payload.")
 
-        workbook_bytes = export_excel_bytes(students, errors, _subject_master(), school_name)
+        workbook_bytes = export_excel_bytes(
+            analysis.students,
+            analysis.errors,
+            _subject_master(),
+            school_name,
+        )
         return send_file(
             BytesIO(workbook_bytes),
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -685,7 +686,7 @@ def download_workbook():
 
 @app.errorhandler(RequestEntityTooLarge)
 def payload_too_large(_: RequestEntityTooLarge):
-    return render_template("index.html", page=_error_page(_size_limit_message())), 413
+    return _render_page(_error_page(_size_limit_message()), 413)
 
 
 if __name__ == "__main__":

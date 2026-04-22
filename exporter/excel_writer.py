@@ -252,9 +252,9 @@ def write_excel(
     school_name: str = "CBSE Results 2026",
 ) -> None:
     workbook = build_workbook(students, errors, subject_master, school_name)
-    _, all_codes = build_normalized_table(students, subject_master)
+    subject_count = len({code for student in students for code in student.subjects})
     workbook.save(output_path)
     print(f"Saved: {output_path}")
     print(f"   Students : {len(students)}")
-    print(f"   Subjects : {len(all_codes)}")
+    print(f"   Subjects : {subject_count}")
     print(f"   Errors   : {len(errors)}")

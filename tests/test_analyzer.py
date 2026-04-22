@@ -6,11 +6,13 @@ Run:
 
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config.loader import load_settings, load_subject_master
-from parser.gazette_parser import _extract_codes, _extract_marks, parse_gazette
+from parser.gazette_parser import _extract_codes, _extract_marks, parse_gazette, parse_gazette_text
+from services.analyzer_service import analyze_gazette_text, get_sample_text
 from transformer.calculator import compute_class_summary, compute_subject_analysis, compute_summary
 from transformer.normalizer import build_student_dataframe
 
@@ -70,6 +72,28 @@ def test_parse_code_mark_mapping():
     assert student["subjects"]["002"] == 65
     assert student["subjects"]["041"] == 59
     assert student["subjects"]["417"] == 88
+
+
+def test_parse_text_matches_file_parser():
+    sample = Path(os.path.dirname(__file__)) / ".." / "sample_gazette.txt"
+    raw_text = sample.read_text(encoding="utf-8")
+
+    file_students, file_errors = parse_gazette(str(sample), SETTINGS)
+    text_students, text_errors = parse_gazette_text(raw_text, SETTINGS)
+
+    assert text_students == file_students
+    assert text_errors == file_errors
+
+
+def test_shared_analysis_bundle_smoke():
+    bundle = analyze_gazette_text(get_sample_text())
+
+    assert len(bundle.students) == 12
+    assert len(bundle.errors) == 0
+    assert bundle.summary["Total Candidates"] == 12
+    assert len(bundle.all_codes) == 10
+    assert "Roll No" in bundle.student_df.columns
+    assert "Average Marks" in bundle.subject_df.columns
 
 
 def test_normalizer_columns_present():
@@ -174,33 +198,3 @@ def test_summary_tracks_other_result_buckets():
     assert summary["Other Results"] == 2
     assert class_summary["Other Results"] == 2
     assert summary["Pass %"] == 33.33
-
-
-if __name__ == "__main__":
-    tests = [
-        test_extract_codes_basic,
-        test_extract_codes_ignores_non_3digit,
-        test_extract_marks_numeric,
-        test_extract_marks_with_absent,
-        test_parse_full_file,
-        test_parse_code_mark_mapping,
-        test_normalizer_columns_present,
-        test_normalizer_no_position_bleed,
-        test_average_excludes_absent,
-        test_average_correct_denominator,
-        test_class_summary,
-        test_summary_tracks_other_result_buckets,
-    ]
-
-    passed = 0
-    failed = 0
-    for test in tests:
-        try:
-            test()
-            print(f"  PASS  {test.__name__}")
-            passed += 1
-        except Exception as exc:
-            print(f"  FAIL  {test.__name__}: {exc}")
-            failed += 1
-
-    print(f"\n  Results: {passed} passed, {failed} failed")

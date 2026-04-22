@@ -4,6 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CBSE Analyzer Atelier</title>
+    <meta name="description" content="Upload a CBSE gazette text file, inspect batch analytics, and export a polished Excel workbook with student, subject, summary, and parser-note sheets.">
+    <meta name="robots" content="index,follow">
+    <meta name="theme-color" content="#0f1320">
+    <meta property="og:title" content="CBSE Analyzer Atelier">
+    <meta property="og:description" content="A premium CBSE gazette analyzer for fast batch insights and Excel export.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -1714,7 +1721,7 @@
                     <form action="{{ page.home_url }}" method="post" enctype="multipart/form-data" class="panel-card form-card" data-tilt>
                         <div class="field-group">
                             <label for="gazette_file">Upload CBSE gazette text</label>
-                            <input id="gazette_file" name="gazette_file" type="file" accept=".txt">
+                            <input id="gazette_file" name="gazette_file" type="file" accept=".txt,text/plain">
                         </div>
 
                         <div class="field-group">
@@ -1776,7 +1783,7 @@
         </section>
 
         {% if page.error_message %}
-        <section class="alert-shell">
+        <section class="alert-shell" role="alert" aria-live="polite">
             <h3>Intake needs attention.</h3>
             <p>{{ page.error_message }}</p>
         </section>

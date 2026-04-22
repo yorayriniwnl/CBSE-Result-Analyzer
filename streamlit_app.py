@@ -2,41 +2,28 @@
 
 import hashlib
 import html
-import os
-import re
-import sys
-import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import pandas as pd
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).parent))
-
-from config.loader import load_settings, load_subject_master
 from exporter.excel_writer import export_excel_bytes
-from parser.gazette_parser import ParseError, Student, parse_gazette
-from transformer.calculator import compute_subject_analysis, compute_summary
-from transformer.normalizer import build_student_dataframe
-
-
-BASE_DIR = Path(__file__).parent
-
-
-@st.cache_data(show_spinner=False)
-def get_subject_master() -> Dict[str, str]:
-    return load_subject_master(str(BASE_DIR / "config" / "subjects.json"))
-
-
-@st.cache_data(show_spinner=False)
-def get_settings() -> Dict:
-    return load_settings(str(BASE_DIR / "config" / "settings.yaml"))
-
-
-@st.cache_data(show_spinner=False)
-def get_sample_text() -> str:
-    return (BASE_DIR / "sample_gazette.txt").read_text(encoding="utf-8")
+from services.analyzer_service import (
+    DEFAULT_OUTPUT_NAME,
+    DEFAULT_SCHOOL_NAME,
+    analyze_gazette_text,
+    coerce_display_table,
+    detect_school_name,
+    ensure_output_name,
+    get_sample_text,
+    get_settings,
+    get_subject_master,
+    pass_rate_note,
+    result_breakdown_rows,
+    select_topper_rows,
+    serialize_error_rows,
+)
 
 
 def inject_styles() -> None:
@@ -794,88 +781,6 @@ def empty_state(title: str, copy: str) -> None:
     )
 
 
-def detect_school_name(raw_text: str) -> Optional[str]:
-    match = re.search(r"^SCHOOL\s*:\s*-\s*\d+\s+(.*)$", raw_text, re.MULTILINE)
-    if match:
-        return match.group(1).strip()
-    return None
-
-
-def parse_gazette_text(raw_text: str, settings: Dict) -> Tuple[List[Student], List[ParseError]]:
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".txt",
-            delete=False,
-            encoding="utf-8",
-            newline="\n",
-        ) as handle:
-            handle.write(raw_text)
-            temp_path = handle.name
-        return parse_gazette(temp_path, settings)
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
-
-
-def coerce_display_table(dataframe: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
-    view = dataframe.loc[:, [column for column in columns if column in dataframe.columns]].copy()
-    if "Percentage" in view.columns:
-        view["Percentage"] = pd.to_numeric(view["Percentage"], errors="coerce").map(
-            lambda value: f"{value:.2f}%" if pd.notna(value) else ""
-        )
-    return view
-
-
-def ensure_download_name(name: str) -> str:
-    clean_name = (name or "").strip() or "CBSE_Result_Analysis.xlsx"
-    if not clean_name.lower().endswith(".xlsx"):
-        clean_name = f"{clean_name}.xlsx"
-    return clean_name
-
-
-def pass_rate_note(summary: Dict[str, object]) -> str:
-    note = (
-        f'{summary["Passed"]} pass, {summary["Failed"]} fail, '
-        f'{summary["Compartment"]} compartment'
-    )
-    other_results = int(summary.get("Other Results", 0) or 0)
-    if other_results:
-        note += f", {other_results} other"
-    return f"{note}."
-
-
-def result_breakdown_rows(summary: Dict[str, object]) -> List[Dict[str, int]]:
-    rows = [
-        {"Result": "PASS", "Count": int(summary["Passed"])},
-        {"Result": "FAIL", "Count": int(summary["Failed"])},
-        {"Result": "COMP", "Count": int(summary["Compartment"])},
-        {"Result": "ABSENT", "Count": int(summary["Absent"])},
-    ]
-    other_results = int(summary.get("Other Results", 0) or 0)
-    if other_results:
-        rows.append({"Result": "OTHER", "Count": other_results})
-    return rows
-
-
-def select_topper_rows(student_df: pd.DataFrame) -> pd.DataFrame:
-    sortable = student_df.copy()
-    sortable["Percentage"] = pd.to_numeric(sortable["Percentage"], errors="coerce")
-    sortable["Total Marks"] = pd.to_numeric(sortable["Total Marks"], errors="coerce")
-    sortable["Result"] = sortable["Result"].astype(str).str.upper()
-
-    eligible = sortable[sortable["Result"] == "PASS"]
-    if eligible.empty:
-        eligible = sortable[sortable["Percentage"].notna()]
-
-    return eligible.sort_values(
-        ["Percentage", "Total Marks"],
-        ascending=[False, False],
-        na_position="last",
-    ).head(3)
-
-
 def build_source_signature(source_name: str, raw_bytes: bytes) -> str:
     digest = hashlib.sha1(raw_bytes).hexdigest()[:12]
     return f"{source_name}:{len(raw_bytes)}:{digest}"
@@ -884,8 +789,8 @@ def build_source_signature(source_name: str, raw_bytes: bytes) -> str:
 def init_state() -> None:
     defaults = {
         "use_sample": False,
-        "school_name": "CBSE Results 2026",
-        "output_name": "CBSE_Result_Analysis.xlsx",
+        "school_name": DEFAULT_SCHOOL_NAME,
+        "output_name": DEFAULT_OUTPUT_NAME,
         "active_source": "",
         "active_source_name": "",
         "uploader_nonce": 0,
@@ -947,8 +852,8 @@ def main() -> None:
                 st.session_state["use_sample"] = False
                 st.session_state["active_source"] = ""
                 st.session_state["active_source_name"] = ""
-                st.session_state["school_name"] = "CBSE Results 2026"
-                st.session_state["output_name"] = "CBSE_Result_Analysis.xlsx"
+                st.session_state["school_name"] = DEFAULT_SCHOOL_NAME
+                st.session_state["output_name"] = DEFAULT_OUTPUT_NAME
                 st.session_state["uploader_nonce"] += 1
                 st.rerun()
 
@@ -995,7 +900,7 @@ def main() -> None:
         if st.session_state.get("active_source") != source_signature:
             st.session_state["active_source"] = source_signature
             st.session_state["active_source_name"] = source_name
-            suggested_school = detect_school_name(raw_text) or "CBSE Results 2026"
+            suggested_school = detect_school_name(raw_text) or DEFAULT_SCHOOL_NAME
             st.session_state["school_name"] = suggested_school
             st.session_state["output_name"] = f"{Path(source_name).stem}_analysis.xlsx"
             school_name = st.session_state["school_name"]
@@ -1014,38 +919,43 @@ def main() -> None:
     subject_master = get_subject_master()
 
     with st.spinner("Reading the gazette and shaping the workbook..."):
-        students, errors = parse_gazette_text(raw_text, settings)
+        analysis = analyze_gazette_text(
+            raw_text,
+            subject_master=subject_master,
+            settings=settings,
+        )
 
-    if not students:
+    if not analysis.students:
         hero_slot.markdown(
-            hero_html(source_name, school_name, None, None, len(errors)),
+            hero_html(source_name, school_name, None, None, len(analysis.errors)),
             unsafe_allow_html=True,
         )
         st.error("The file was read, but no student rows could be parsed.")
-        if errors:
-            error_df = pd.DataFrame(
-                [
-                    {
-                        "Level": error.level,
-                        "Roll No": error.roll,
-                        "Line No": error.line_no,
-                        "Message": error.message,
-                    }
-                    for error in errors
-                ]
-            )
+        if analysis.errors:
+            error_df = pd.DataFrame(serialize_error_rows(analysis.errors))
             st.dataframe(error_df, use_container_width=True, height=260)
         st.code(raw_text[:5000], language="text")
         return
 
-    student_df, all_codes = build_student_dataframe(students, subject_master)
-    subject_df = compute_subject_analysis(students, all_codes, subject_master)
-    summary = compute_summary(students)
-    workbook_bytes = export_excel_bytes(students, errors, subject_master, school_name)
-    download_name = ensure_download_name(st.session_state["output_name"])
+    student_df = analysis.student_df
+    subject_df = analysis.subject_df
+    summary = analysis.summary
+    workbook_bytes = export_excel_bytes(
+        analysis.students,
+        analysis.errors,
+        subject_master,
+        school_name,
+    )
+    download_name = ensure_output_name(st.session_state["output_name"])
 
     hero_slot.markdown(
-        hero_html(source_name, school_name, summary, len(all_codes), len(errors)),
+        hero_html(
+            source_name,
+            school_name,
+            summary,
+            len(analysis.all_codes),
+            len(analysis.errors),
+        ),
         unsafe_allow_html=True,
     )
 
@@ -1075,13 +985,13 @@ def main() -> None:
         ),
         (
             "Subjects",
-            str(len(all_codes)),
+            str(len(analysis.all_codes)),
             "Unique subjects discovered straight from the uploaded gazette.",
             "ink",
         ),
         (
             "Parser notes",
-            str(len(errors)),
+            str(len(analysis.errors)),
             "Warnings and hard parser issues surfaced during intake.",
             "gold",
         ),
@@ -1100,8 +1010,8 @@ def main() -> None:
                 f"The workbook is ready to leave the studio. Source file: {source_name}.",
                 [
                     f"{summary['Total Candidates']} students parsed",
-                    f"{len(all_codes)} mapped subjects",
-                    f"{len(errors)} parser notes",
+                    f"{len(analysis.all_codes)} mapped subjects",
+                    f"{len(analysis.errors)} parser notes",
                 ],
                 tone="ink",
             ),
@@ -1258,23 +1168,13 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-        if not errors:
+        if not analysis.errors:
             empty_state(
                 "Clean parse.",
                 "No warnings or hard parser errors were generated for this gazette.",
             )
         else:
-            error_df = pd.DataFrame(
-                [
-                    {
-                        "Level": error.level,
-                        "Roll No": error.roll,
-                        "Line No": error.line_no,
-                        "Message": error.message,
-                    }
-                    for error in errors
-                ]
-            )
+            error_df = pd.DataFrame(serialize_error_rows(analysis.errors))
             st.dataframe(error_df, use_container_width=True, height=320)
 
     with tabs[4]:

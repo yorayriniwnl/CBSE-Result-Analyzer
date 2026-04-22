@@ -78,25 +78,19 @@ def _extract_marks(
     return marks
 
 
-def parse_gazette(
-    filepath: str,
+def _normalized_lines(raw_text: str) -> List[str]:
+    normalized = raw_text.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n")
+    return normalized.split("\n")
+
+
+def _parse_lines(
+    lines: List[str],
     settings: Optional[Dict[str, Any]] = None,
 ) -> tuple[List[Student], List[ParseError]]:
-    """
-    Parse a CBSE Gazette TXT file and return (students, errors).
-
-    The optional settings dictionary currently supports `absent_markers`.
-    """
     students: List[Student] = []
     errors: List[ParseError] = []
     settings = settings or {}
     absent_markers = settings.get("absent_markers", list(DEFAULT_ABSENT_MARKERS))
-
-    with open(filepath, "r", encoding="utf-8", errors="replace") as handle:
-        raw = handle.read()
-
-    raw = raw.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n")
-    lines = raw.split("\n")
 
     i = 0
     while i < len(lines):
@@ -193,3 +187,26 @@ def parse_gazette(
             seen[student.roll] = student.line_no
 
     return students, errors
+
+
+def parse_gazette(
+    filepath: str,
+    settings: Optional[Dict[str, Any]] = None,
+) -> tuple[List[Student], List[ParseError]]:
+    """
+    Parse a CBSE Gazette TXT file and return (students, errors).
+
+    The optional settings dictionary currently supports `absent_markers`.
+    """
+    with open(filepath, "r", encoding="utf-8", errors="replace") as handle:
+        raw = handle.read()
+
+    return parse_gazette_text(raw, settings)
+
+
+def parse_gazette_text(
+    raw_text: str,
+    settings: Optional[Dict[str, Any]] = None,
+) -> tuple[List[Student], List[ParseError]]:
+    """Parse gazette content that is already loaded in memory."""
+    return _parse_lines(_normalized_lines(raw_text), settings)
