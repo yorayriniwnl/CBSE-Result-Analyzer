@@ -1,3 +1,3 @@
-"""Compatibility module for imports that still reference server:app."""
+"""Compatibility entrypoint for Vercel Flask discovery."""
 
 from app import app

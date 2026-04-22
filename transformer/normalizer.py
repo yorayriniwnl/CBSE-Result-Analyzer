@@ -1,17 +1,11 @@
 """Normalize parsed students into tabular forms used by the app and tests."""
 
-import json
 import re
 from typing import Dict, List, Tuple
 
 import pandas as pd
 
 from parser.gazette_parser import Student
-
-
-def load_subject_master(path: str) -> Dict[str, str]:
-    with open(path, "r", encoding="utf-8") as handle:
-        return json.load(handle)
 
 
 def _sorted_subject_codes(students: List[Student]) -> List[str]:

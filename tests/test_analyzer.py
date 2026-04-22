@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config.loader import load_settings, load_subject_master
 from parser.gazette_parser import _extract_codes, _extract_marks, parse_gazette
-from transformer.calculator import compute_class_summary, compute_subject_analysis
+from transformer.calculator import compute_class_summary, compute_subject_analysis, compute_summary
 from transformer.normalizer import build_student_dataframe
 
 
@@ -159,6 +159,23 @@ def test_class_summary():
     assert summary["Pass %"] == 25.0
 
 
+def test_summary_tracks_other_result_buckets():
+    students = [
+        {"roll": "001", "name": "A", "result": "PASS", "gender": "M", "subjects": {}, "line_no": 1},
+        {"roll": "002", "name": "B", "result": "UFM", "gender": "F", "subjects": {}, "line_no": 3},
+        {"roll": "003", "name": "C", "result": "RWH", "gender": "F", "subjects": {}, "line_no": 5},
+    ]
+
+    summary = compute_summary(students)
+    class_summary = compute_class_summary(students)
+
+    assert summary["Total Candidates"] == 3
+    assert summary["Passed"] == 1
+    assert summary["Other Results"] == 2
+    assert class_summary["Other Results"] == 2
+    assert summary["Pass %"] == 33.33
+
+
 if __name__ == "__main__":
     tests = [
         test_extract_codes_basic,
@@ -172,6 +189,7 @@ if __name__ == "__main__":
         test_average_excludes_absent,
         test_average_correct_denominator,
         test_class_summary,
+        test_summary_tracks_other_result_buckets,
     ]
 
     passed = 0

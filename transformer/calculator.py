@@ -8,6 +8,7 @@ from parser.gazette_parser import Student
 
 
 StudentLike = Union[Student, Dict[str, Any]]
+TRACKED_RESULTS = ("PASS", "FAIL", "COMP", "ABSENT")
 
 
 def _field(student: StudentLike, name: str, default: Any = None) -> Any:
@@ -52,22 +53,29 @@ def compute_subject_analysis(
 
 def compute_summary(students: List[StudentLike]) -> Dict[str, Any]:
     total = len(students)
-    passed = sum(1 for student in students if _field(student, "result") == "PASS")
-    failed = sum(1 for student in students if _field(student, "result") == "FAIL")
-    comp = sum(1 for student in students if _field(student, "result") == "COMP")
-    absent = sum(1 for student in students if _field(student, "result") == "ABSENT")
-    male = sum(1 for student in students if _field(student, "gender") == "M")
-    female = sum(1 for student in students if _field(student, "gender") == "F")
+    result_counts = {result: 0 for result in TRACKED_RESULTS}
+    other_results = 0
+
+    for student in students:
+        result = str(_field(student, "result", "") or "").upper()
+        if result in result_counts:
+            result_counts[result] += 1
+        elif result:
+            other_results += 1
+
+    male = sum(1 for student in students if str(_field(student, "gender", "") or "").upper() == "M")
+    female = sum(1 for student in students if str(_field(student, "gender", "") or "").upper() == "F")
 
     return {
         "Total Candidates": total,
-        "Passed": passed,
-        "Failed": failed,
-        "Compartment": comp,
-        "Absent": absent,
+        "Passed": result_counts["PASS"],
+        "Failed": result_counts["FAIL"],
+        "Compartment": result_counts["COMP"],
+        "Absent": result_counts["ABSENT"],
+        "Other Results": other_results,
         "Male": male,
         "Female": female,
-        "Pass %": round(passed / total * 100, 2) if total else 0,
+        "Pass %": round(result_counts["PASS"] / total * 100, 2) if total else 0,
     }
 
 
@@ -80,5 +88,6 @@ def compute_class_summary(students: List[StudentLike]) -> Dict[str, Any]:
         "Failed": summary["Failed"],
         "Compartment": summary["Compartment"],
         "Absent": summary["Absent"],
+        "Other Results": summary["Other Results"],
         "Pass %": summary["Pass %"],
     }

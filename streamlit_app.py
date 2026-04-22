@@ -835,6 +835,47 @@ def ensure_download_name(name: str) -> str:
     return clean_name
 
 
+def pass_rate_note(summary: Dict[str, object]) -> str:
+    note = (
+        f'{summary["Passed"]} pass, {summary["Failed"]} fail, '
+        f'{summary["Compartment"]} compartment'
+    )
+    other_results = int(summary.get("Other Results", 0) or 0)
+    if other_results:
+        note += f", {other_results} other"
+    return f"{note}."
+
+
+def result_breakdown_rows(summary: Dict[str, object]) -> List[Dict[str, int]]:
+    rows = [
+        {"Result": "PASS", "Count": int(summary["Passed"])},
+        {"Result": "FAIL", "Count": int(summary["Failed"])},
+        {"Result": "COMP", "Count": int(summary["Compartment"])},
+        {"Result": "ABSENT", "Count": int(summary["Absent"])},
+    ]
+    other_results = int(summary.get("Other Results", 0) or 0)
+    if other_results:
+        rows.append({"Result": "OTHER", "Count": other_results})
+    return rows
+
+
+def select_topper_rows(student_df: pd.DataFrame) -> pd.DataFrame:
+    sortable = student_df.copy()
+    sortable["Percentage"] = pd.to_numeric(sortable["Percentage"], errors="coerce")
+    sortable["Total Marks"] = pd.to_numeric(sortable["Total Marks"], errors="coerce")
+    sortable["Result"] = sortable["Result"].astype(str).str.upper()
+
+    eligible = sortable[sortable["Result"] == "PASS"]
+    if eligible.empty:
+        eligible = sortable[sortable["Percentage"].notna()]
+
+    return eligible.sort_values(
+        ["Percentage", "Total Marks"],
+        ascending=[False, False],
+        na_position="last",
+    ).head(3)
+
+
 def build_source_signature(source_name: str, raw_bytes: bytes) -> str:
     digest = hashlib.sha1(raw_bytes).hexdigest()[:12]
     return f"{source_name}:{len(raw_bytes)}:{digest}"
@@ -1008,26 +1049,8 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    result_df = pd.DataFrame(
-        {
-            "Result": ["PASS", "FAIL", "COMP", "ABSENT"],
-            "Count": [
-                summary["Passed"],
-                summary["Failed"],
-                summary["Compartment"],
-                summary["Absent"],
-            ],
-        }
-    )
-
-    sortable_students = student_df.copy()
-    sortable_students["Percentage"] = pd.to_numeric(sortable_students["Percentage"], errors="coerce")
-    sortable_students["Total Marks"] = pd.to_numeric(sortable_students["Total Marks"], errors="coerce")
-    toppers = sortable_students.sort_values(
-        ["Percentage", "Total Marks"],
-        ascending=[False, False],
-        na_position="last",
-    ).head(3)
+    result_df = pd.DataFrame(result_breakdown_rows(summary))
+    toppers = select_topper_rows(student_df)
 
     strongest = None
     weakest = None
@@ -1047,7 +1070,7 @@ def main() -> None:
         (
             "Pass rate",
             f'{summary["Pass %"]:.2f}%',
-            f'{summary["Passed"]} pass, {summary["Failed"]} fail, {summary["Compartment"]} compartment.',
+            pass_rate_note(summary),
             "forest",
         ),
         (
