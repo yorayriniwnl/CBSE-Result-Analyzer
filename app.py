@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import tempfile
+import threading
 import zlib
 from functools import lru_cache
 from io import BytesIO
@@ -163,6 +164,10 @@ def _public_route(path: str) -> str:
     return f"{prefix}{path}" if prefix else path
 
 
+def _can_use_dev_reloader() -> bool:
+    return threading.current_thread() is threading.main_thread()
+
+
 def _running_inside_streamlit() -> bool:
     if not any(module_name.startswith("streamlit") for module_name in sys.modules):
         return False
@@ -196,7 +201,14 @@ def _run_dev_entrypoint() -> None:
         _render_streamlit_entrypoint_notice()
         return
 
-    app.run(debug=True)
+    run_options = {"debug": True}
+    if not _can_use_dev_reloader():
+        app.logger.info(
+            "Flask dev reloader disabled because app.py is running outside the main thread."
+        )
+        run_options["use_reloader"] = False
+
+    app.run(**run_options)
 
 
 def _resource_report() -> Dict[str, object]:
@@ -437,6 +449,17 @@ def _default_context() -> Dict[str, object]:
         "download_url": _public_route("/download"),
         "error_message": None,
         "download_ready": False,
+        "summary": {
+            "Total Candidates": 0,
+            "Male": 0,
+            "Female": 0,
+            "Passed": 0,
+            "Failed": 0,
+            "Compartment": 0,
+            "Absent": 0,
+            "Other Results": 0,
+            "Pass %": 0.0,
+        },
         "metrics": [],
         "toppers": [],
         "result_breakdown": [],

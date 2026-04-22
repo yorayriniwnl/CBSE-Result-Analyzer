@@ -64,20 +64,31 @@ def test_forwarded_prefix_header_overrides_host_mapping():
     assert page["download_url"] == "/proxy-prefix/download"
 
 
-def test_streamlit_detection_is_false_in_normal_test_runtime():
-    assert app_module._running_inside_streamlit() is False
-
-
-def test_run_dev_entrypoint_uses_flask_when_not_in_streamlit(monkeypatch):
+def test_run_dev_entrypoint_uses_flask(monkeypatch):
     calls = {"flask": 0}
-
-    monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: False)
-    monkeypatch.setattr(app_module, "_render_streamlit_entrypoint_notice", lambda: None)
 
     def fake_run(**kwargs):
         calls["flask"] += 1
         assert kwargs == {"debug": True}
 
+    monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: False)
+    monkeypatch.setattr(app_module, "_can_use_dev_reloader", lambda: True)
+    monkeypatch.setattr(app_module.app, "run", fake_run)
+
+    app_module._run_dev_entrypoint()
+
+    assert calls["flask"] == 1
+
+
+def test_run_dev_entrypoint_disables_reloader_off_main_thread(monkeypatch):
+    calls = {"flask": 0}
+
+    def fake_run(**kwargs):
+        calls["flask"] += 1
+        assert kwargs == {"debug": True, "use_reloader": False}
+
+    monkeypatch.setattr(app_module, "_running_inside_streamlit", lambda: False)
+    monkeypatch.setattr(app_module, "_can_use_dev_reloader", lambda: False)
     monkeypatch.setattr(app_module.app, "run", fake_run)
 
     app_module._run_dev_entrypoint()
