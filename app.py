@@ -112,11 +112,11 @@ def _render_page(page: Dict[str, object], status_code: int = 200):
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CBSE Analyzer</title>
+    <title>YOR // CBSE Result Analyzer</title>
 </head>
-<body style="margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f8f3ed;color:#101522;">
+<body style="margin:0;font-family:Arial,'Helvetica Neue',sans-serif;background:#000;color:#f5eaea;background-image:linear-gradient(rgba(232,75,75,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(232,75,75,.055) 1px,transparent 1px);background-size:32px 32px;">
     <main style="max-width:720px;margin:8vh auto;padding:24px;">
-        <h1 style="margin:0 0 12px;">CBSE Analyzer</h1>
+        <h1 style="margin:0 0 12px;">YOR // CBSE Result Analyzer</h1>
         <p style="margin:0 0 10px;line-height:1.6;">{message}</p>
         <p style="margin:0;line-height:1.6;">Refresh the page or check <code>/healthz</code> for a quick runtime status check.</p>
     </main>

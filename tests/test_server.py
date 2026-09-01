@@ -14,7 +14,7 @@ def test_home_page_loads():
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b"CBSE Analyzer Atelier" in response.data
+    assert b"YOR // CBSE Result Analyzer" in response.data
     assert app_module.PUBLIC_VERCEL_URL.encode("utf-8") in response.data
     assert b"Open Live Demo" in response.data
     assert app_module.PUBLIC_GITHUB_URL.encode("utf-8") in response.data
@@ -26,7 +26,7 @@ def test_prefixed_home_page_loads():
     response = client.get("/cbse-result-analyzer")
 
     assert response.status_code == 200
-    assert b"CBSE Analyzer Atelier" in response.data
+    assert b"YOR // CBSE Result Analyzer" in response.data
 
 
 def test_server_entrypoint_exposes_same_flask_app():

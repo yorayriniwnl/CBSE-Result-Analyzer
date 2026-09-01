@@ -30,7 +30,6 @@ def inject_styles() -> None:
     st.markdown(
         """
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
         :root {
             --canvas: #f3efe8;
@@ -616,6 +615,53 @@ def inject_styles() -> None:
                 grid-template-columns: 1fr;
             }
         }
+        /* YOR // Visual Framework Lock */
+        :root {
+            --yor-void: #000000;
+            --yor-graphite: #050505;
+            --yor-crimson: #e84b4b;
+            --yor-deep-crimson: #671515;
+            --yor-signal: #ff8a7f;
+            --yor-warm-white: #f5eaea;
+            --yor-muted: #c4c4c4;
+            --yor-field: linear-gradient(135deg, #671515, #8c1616, #2a0505);
+            --canvas: var(--yor-void);
+            --canvas-soft: var(--yor-graphite);
+            --surface: rgba(5, 5, 5, 0.86);
+            --surface-strong: rgba(10, 10, 10, 0.96);
+            --ink: var(--yor-warm-white);
+            --muted: var(--yor-muted);
+            --line: rgba(245, 234, 234, 0.16);
+            --gold: var(--yor-crimson);
+            --gold-deep: var(--yor-deep-crimson);
+            --forest: var(--yor-signal);
+            --stone: var(--yor-graphite);
+            --shadow: 0 24px 70px rgba(103, 21, 21, 0.16);
+        }
+
+        html, body, [class*="css"] { font-family: Arial, "Helvetica Neue", sans-serif; color: var(--yor-warm-white); }
+        [data-testid="stAppViewContainer"] {
+            background-color: var(--yor-void) !important;
+            background-image:
+                linear-gradient(rgba(232, 75, 75, 0.055) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(232, 75, 75, 0.055) 1px, transparent 1px),
+                radial-gradient(circle at 86% 0%, rgba(103, 21, 21, 0.3), transparent 36rem) !important;
+            background-size: 32px 32px, 32px 32px, 100% 100% !important;
+        }
+        [data-testid="stHeader"] { background: transparent !important; }
+        .block-container { max-width: 1280px; padding-top: 2rem; }
+        h1, h2, h3, h4, .hero-title, .panel-title, .spotlight-title { font-family: Arial, "Helvetica Neue", sans-serif; color: var(--yor-warm-white) !important; letter-spacing: -0.04em; }
+        .hero-shell, .panel-card, .panel-card-dark, .metric-card, .spotlight-card, .student-card, .empty-shell, .terminal-card { border-radius: 0 !important; border-color: rgba(245, 234, 234, 0.16) !important; box-shadow: var(--shadow) !important; }
+        .hero-shell, .panel-card-dark { background: var(--yor-field) !important; }
+        .panel-card, .metric-card, .spotlight-card, .student-card, .empty-shell, .terminal-card { background: linear-gradient(145deg, rgba(5, 5, 5, 0.96), rgba(26, 5, 5, 0.72)) !important; }
+        .hero-kicker, .lux-label, .status-chip, .mini-chip, .hero-pill, .spotlight-chip { border-radius: 0 !important; border-color: rgba(255, 138, 127, 0.3) !important; background: rgba(0, 0, 0, 0.32) !important; color: var(--yor-signal) !important; }
+        .hero-copy, .panel-copy, .panel-copy-dark, .spotlight-copy, .metric-note, .tab-note, .helper-note, .footer-copy, p, label, caption { color: var(--yor-muted); }
+        button, [data-testid="stFileUploaderDropzone"] { border-radius: 0 !important; }
+        button[kind="primary"], .stDownloadButton button { border-color: var(--yor-crimson) !important; background: var(--yor-crimson) !important; color: #000 !important; }
+        button[kind="secondary"] { border-color: rgba(245, 234, 234, 0.28) !important; background: transparent !important; color: var(--yor-warm-white) !important; }
+        input, textarea, [data-baseweb="select"] > div { border-radius: 0 !important; background: var(--yor-graphite) !important; color: var(--yor-warm-white) !important; border-color: rgba(245, 234, 234, 0.24) !important; }
+        [data-testid="stDataFrame"] { border: 1px solid rgba(245, 234, 234, 0.16); }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .001ms !important; animation-duration: .001ms !important; } }
         </style>
         """,
         unsafe_allow_html=True,
@@ -695,8 +741,8 @@ def hero_html(
 
     return f"""
     <section class="hero-shell">
-        <div class="hero-kicker">CBSE Analyzer Atelier</div>
-        <h1 class="hero-title">Board-result analysis with a premium front desk.</h1>
+        <div class="hero-kicker">YOR // CBSE Result Analyzer</div>
+        <h1 class="hero-title">Board-result intelligence, grounded in evidence.</h1>
         <p class="hero-copy">
             Clean intake, elegant reporting, and serious analysis in one space. Upload the gazette,
             inspect the batch pulse, and leave with a workbook that is ready to hand over.
@@ -802,7 +848,7 @@ def init_state() -> None:
 
 def main() -> None:
     st.set_page_config(
-        page_title="CBSE Analyzer Atelier",
+        page_title="YOR // CBSE Result Analyzer",
         page_icon="C",
         layout="wide",
         initial_sidebar_state="collapsed",
