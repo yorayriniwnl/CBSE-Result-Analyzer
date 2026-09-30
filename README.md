@@ -57,3 +57,7 @@ python main.py sample_gazette.txt
 ```bash
 python -m pytest
 ```
+
+## Data handling
+
+Uploaded gazette text is processed for the current request and is not a durable application datastore. Do not add real student records to repository fixtures. Keep sample inputs synthetic or anonymized, and keep generated workbooks out of Git (the repository ignores `*.xlsx`). The Flask entrypoint enforces a configurable upload-size limit before parsing.
