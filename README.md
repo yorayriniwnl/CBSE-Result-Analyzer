@@ -33,6 +33,23 @@ This project ships with three entrypoints:
 - `python -m streamlit run streamlit_app.py` starts the Streamlit studio UI.
 - `python main.py <gazette.txt> [output.xlsx] [--school "School Name"]` runs the CLI converter.
 
+<!-- YOR REDLINE / EXPERIENCE V2 -->
+
+<a id="system-map"></a>
+## System map
+
+<div align="center"><picture><source media="(max-width: 600px)" srcset="docs/yor-redline-system-mobile.svg"/><img src="docs/yor-redline-system.svg" width="100%" alt="Gazette results analysis: Load gazette file to Parse result records to Inspect analysis to Export workbook"/></picture></div>
+
+| Project signal | Documented scope |
+| :--- | :--- |
+| **Current maturity** | LOCAL / VERIFIED PATHS |
+| **Technical focus** | Flask upload and parse workflow, gazette extraction, preview, and spreadsheet export. |
+| **Evidence boundary** | Workbook generation follows documented parsing assumptions and data-handling limits. |
+
+**Navigate:** [Local setup](#local-setup) · [Run locally](#run-locally) · [Tests](#tests) · [Data handling](#data-handling)
+
+<!-- END YOR REDLINE / EXPERIENCE V2 -->
+
 ## Local setup
 
 ```bash
