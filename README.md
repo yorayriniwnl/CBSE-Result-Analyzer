@@ -1,3 +1,13 @@
+<!-- YOR REDLINE / README COVER V1 -->
+<div align="center">
+
+![CBSE-Result-Analyzer | YOR REDLINE](docs/yor-redline-cover.svg)
+
+<sub><strong>YOR / PROJECT DOSSIER</strong> · <a href="https://github.com/yorayriniwnl">GitHub</a> · <a href="https://yorayriniwnl.in">Portfolio</a></sub>
+
+</div>
+<!-- END YOR REDLINE -->
+
 # YOR // CBSE Result Analyzer
 
 > Evidence-led CBSE gazette analysis with parser notes and workbook export.
